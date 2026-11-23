@@ -6,9 +6,11 @@
 
 A program that sums up the world's news of Monday, 23 November 2026 in one image.
 Node 22 standard library only — no network, no external packages. It draws
-13 illustrated news cards (3 lead + 10 grid), a KPI strip, a short ALSO strip
-and a DATE CHECK box, and writes the result to `/output/entry.png`
-(1024×1024, under 1 MiB, byte-identical across runs).
+33 numbered stories (13 illustrated news cards + a 20-item ALSO list), a world
+map with numbered pins for stories 1–13, a UTC timeline strip, a region bar,
+a 6-number KPI strip and an expanded DATE CHECK / LEFT OUT box, and writes
+the result to `/output/entry.png` (1024×1024, under 1 MiB, byte-identical
+across runs).
 
 Run it with:
 

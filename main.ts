@@ -1,901 +1,1035 @@
-// news-image-20261123 v3 — bright broadsheet front page.
-// Monday 23 November 2026, summed up as a light paper newspaper:
-// paper background, thin ink rules, serif type, 13 illustrated cards
-// (3 lead + 10 grid), KPI strip, ALSO strip, DATE CHECK footer.
-// Node 22 standard library only. No network, no clock, no randomness.
-// Writes one 1024x1024 PNG to /output/entry.png (or argv[2]).
+// news-image-20261123 v4 — "The World in One Day" broadsheet.
+// Fresh implementation (Node 22 stdlib only, no network, deterministic).
+// Draws a 1024x1024 light-paper front page summing up Monday 23 November 2026:
+// giant date masthead, 6-number KPI strip, UTC timeline, 3 lead heroes,
+// 10-card illustrated grid, a solid-shape world map with numbered pins,
+// a numbered ALSO list (33 stories total), a 7-region bar, and a DATE CHECK
+// "left out" list naming stories from other days that were excluded.
+// Run: mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+// Output: /output/entry.png (or $MAKEFUN_OUTPUT_DIR/entry.png), <= 1 MiB.
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 
+// ---------------------------------------------------------------- constants
 const W = 1024;
 const H = 1024;
-const MARGIN_X = 38;
-const CONTENT_W = 948;
-const GAP_Y = 8;
+const MARGIN = 38; // content margin left/right
+const CW = W - MARGIN * 2; // 948 content width
 
-// ---- paper palette (bright broadsheet, no dark cards) ----
-const PAPER = [244, 239, 230]; // #F4EFE6 canvas
-const CARD = [250, 247, 242];  // #FAF7F2 card paper
-const INK = [20, 20, 20];      // #141414 headline ink
-const INK2 = [43, 47, 54];     // #2B2F36 secondary ink
-const SOFT = [96, 100, 108];   // soft grey ink for legend
-const RED = [185, 28, 28];     // #B91C1C accent (rules + labels only)
-const BLUE = [30, 58, 95];     // #1E3A5F dark blue (KPI numbers)
+// Palette: light newspaper paper, dark ink, thin rules, accent per story.
+const PAPER: [number, number, number] = [244, 239, 230];
+const PAPER2: [number, number, number] = [250, 247, 242];
+const INK: [number, number, number] = [20, 20, 20];
+const INK2: [number, number, number] = [58, 58, 58];
+const MUTED: [number, number, number] = [110, 104, 92];
+const RULE: [number, number, number] = [31, 31, 31];
+const CARD: [number, number, number] = [255, 255, 255];
+const CARD_LINE: [number, number, number] = [190, 182, 168];
+const LAND: [number, number, number] = [196, 178, 140];
+const LAND2: [number, number, number] = [214, 198, 164];
+const SEA: [number, number, number] = [226, 232, 236];
+const RED: [number, number, number] = [192, 57, 43];
+const WHITE: [number, number, number] = [255, 255, 255];
 
-// ---- serif glyph atlas (font-glyphs.txt, data file) ----
-// Each line: [advance, leftBearing, topOffset, width, height, base64]
-// bitmap bits are packed continuously, MSB first, row-major.
-// Glyph top in em units = topOffset; baseline sits at em y = 62.
-const BASELINE_EM = 62;
-const CAP_TOP_EM = 14;
-const glyphs = new Map();
-{
-  const here = dirname(fileURLToPath(import.meta.url));
-  const raw = readFileSync(join(here, 'font-glyphs.txt'), 'utf8');
-  for (const line of raw.split('\n')) {
-    const m = line.match(/\[([\d.]+),\s*(-?[\d.]+),\s*(-?[\d.]+),\s*(-?[\d.]+),\s*(-?[\d.]+),\s*'([^']*)'\]\s*,\s*\/\/\s*(\d+)/);
-    if (!m) continue;
-    glyphs.set(Number(m[7]), {
-      advance: Number(m[1]),
-      f2: Number(m[2]),
-      f3: Number(m[3]),
-      w: Number(m[4]),
-      h: Number(m[5]),
-      bytes: Buffer.from(m[6], 'base64'),
-    });
-  }
-}
-function glyphFor(ch) {
-  const g = glyphs.get(ch.charCodeAt(0));
-  if (g) return g;
-  return glyphs.get(32); // fall back to space
-}
+type RGB = [number, number, number];
 
-// ---- PNG encoder (stdlib zlib) ----
-const CRC_TABLE = (() => {
-  const t = new Int32Array(256);
+// ---------------------------------------------------------------- PNG encode
+const CRC_TABLE: Uint32Array = (() => {
+  const t = new Uint32Array(256);
   for (let n = 0; n < 256; n++) {
     let c = n;
-    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-    t[n] = c;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
   }
   return t;
 })();
-function crc32(buf) {
-  let c = 0xFFFFFFFF;
-  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
-  return (c ^ 0xFFFFFFFF) >>> 0;
+
+function crc32(buf: Buffer): number {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]!) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
 }
-function pngChunk(type, data) {
+
+function pngChunk(type: string, data: Buffer): Buffer {
   const len = Buffer.alloc(4);
   len.writeUInt32BE(data.length, 0);
-  const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+  const td = Buffer.concat([Buffer.from(type, 'ascii'), data]);
   const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(body), 0);
-  return Buffer.concat([len, body, crc]);
+  crc.writeUInt32BE(crc32(td), 0);
+  return Buffer.concat([len, td, crc]);
 }
-function encodePNG(w, h, rgb) {
-  const rows = Buffer.alloc(h * (1 + w * 3));
-  for (let y = 0; y < h; y++) {
-    rows[y * (1 + w * 3)] = 0;
-    rgb.copy(rows, y * (1 + w * 3) + 1, y * w * 3, (y + 1) * w * 3);
-  }
+
+function encodePng(rgbBuf: Buffer, w: number, h: number): Buffer {
+  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(w, 0);
   ihdr.writeUInt32BE(h, 4);
-  ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // color type 2 = RGB
+  ihdr[10] = 0; // compression
+  ihdr[11] = 0; // filter
+  ihdr[12] = 0; // interlace
+  const raw = Buffer.alloc(h * (1 + w * 3));
+  for (let y = 0; y < h; y++) {
+    raw[y * (1 + w * 3)] = 0; // filter: none
+    rgbBuf.copy(raw, y * (1 + w * 3) + 1, y * w * 3, (y + 1) * w * 3);
+  }
+  const idat = deflateSync(raw, { level: 9 });
   return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+    sig,
     pngChunk('IHDR', ihdr),
-    pngChunk('IDAT', deflateSync(rows, { level: 9 })),
+    pngChunk('IDAT', idat),
     pngChunk('IEND', Buffer.alloc(0)),
   ]);
 }
 
-// ---- pixel buffer + shape primitives (rects and polygons only) ----
-const px = Buffer.alloc(W * H * 3);
-function setPx(x, y, c) {
-  if (x < 0 || y < 0 || x >= W || y >= H) return;
-  const i = (y * W + x) * 3;
-  px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2];
-}
-function fillRect(x, y, w, h, c) {
-  const x0 = Math.max(0, Math.round(x));
-  const y0 = Math.max(0, Math.round(y));
-  const x1 = Math.min(W, Math.round(x + w));
-  const y1 = Math.min(H, Math.round(y + h));
-  for (let yy = y0; yy < y1; yy++) {
-    for (let xx = x0; xx < x1; xx++) {
-      const i = (yy * W + xx) * 3;
-      px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2];
-    }
+// ---------------------------------------------------------------- canvas
+class Canvas {
+  readonly w: number;
+  readonly h: number;
+  readonly buf: Buffer;
+  constructor(w: number, h: number, bg: RGB) {
+    this.w = w;
+    this.h = h;
+    this.buf = Buffer.alloc(w * h * 3);
+    this.fill(0, 0, w, h, bg);
   }
-}
-function hline(x, y, w, c) { fillRect(x, y, w, 1, c); }
-function vline(x, y, h, c) { fillRect(x, y, 1, h, c); }
-function drawLine(x0, y0, x1, y1, c) {
-  const dx = Math.abs(x1 - x0);
-  const dy = -Math.abs(y1 - y0);
-  const sx = x0 < x1 ? 1 : -1;
-  const sy = y0 < y1 ? 1 : -1;
-  let err = dx + dy;
-  let x = x0;
-  let y = y0;
-  for (;;) {
-    setPx(x, y, c);
-    if (x === x1 && y === y1) break;
-    const e2 = 2 * err;
-    if (e2 >= dy) { err += dy; x += sx; }
-    if (e2 <= dx) { err += dx; y += sy; }
+  set(x: number, y: number, c: RGB): void {
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
+    const o = (y * this.w + x) * 3;
+    this.buf[o] = c[0];
+    this.buf[o + 1] = c[1];
+    this.buf[o + 2] = c[2];
   }
-}
-// Even-odd scanline polygon fill. pts = [[x,y], ...]
-function fillPoly(pts, c) {
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const p of pts) { minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); }
-  for (let y = Math.max(0, Math.floor(minY)); y <= Math.min(H - 1, Math.ceil(maxY)); y++) {
-    const xs = [];
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[i];
-      const b = pts[(i + 1) % pts.length];
-      if ((a[1] <= y + 0.5 && b[1] > y + 0.5) || (b[1] <= y + 0.5 && a[1] > y + 0.5)) {
-        const t = (y + 0.5 - a[1]) / (b[1] - a[1]);
-        xs.push(a[0] + t * (b[0] - a[0]));
+  fill(x: number, y: number, w: number, h: number, c: RGB): void {
+    const x0 = Math.max(0, Math.floor(x));
+    const y0 = Math.max(0, Math.floor(y));
+    const x1 = Math.min(this.w, Math.ceil(x + w));
+    const y1 = Math.min(this.h, Math.ceil(y + h));
+    for (let yy = y0; yy < y1; yy++) {
+      let o = (yy * this.w + x0) * 3;
+      for (let xx = x0; xx < x1; xx++) {
+        this.buf[o] = c[0];
+        this.buf[o + 1] = c[1];
+        this.buf[o + 2] = c[2];
+        o += 3;
       }
     }
-    xs.sort((p, q) => p - q);
-    for (let k = 0; k + 1 < xs.length; k += 2) {
-      const xa = Math.max(0, Math.ceil(xs[k]));
-      const xb = Math.min(W - 1, Math.floor(xs[k + 1]));
-      for (let x = xa; x <= xb; x++) setPx(x, y, c);
+  }
+  hline(x: number, y: number, w: number, c: RGB, t = 1): void {
+    this.fill(x, y, w, t, c);
+  }
+  vline(x: number, y: number, h: number, c: RGB, t = 1): void {
+    this.fill(x, y, t, h, c);
+  }
+  rect(x: number, y: number, w: number, h: number, c: RGB, t = 1): void {
+    this.hline(x, y, w, c, t);
+    this.hline(x, y + h - t, w, c, t);
+    this.vline(x, y, h, c, t);
+    this.vline(x + w - t, y, h, c, t);
+  }
+  line(x0: number, y0: number, x1: number, y1: number, c: RGB): void {
+    // Bresenham.
+    let ax = Math.round(x0);
+    let ay = Math.round(y0);
+    const bx = Math.round(x1);
+    const by = Math.round(y1);
+    const dx = Math.abs(bx - ax);
+    const dy = Math.abs(by - ay);
+    const sx = ax < bx ? 1 : -1;
+    const sy = ay < by ? 1 : -1;
+    let err = dx - dy;
+    for (;;) {
+      this.set(ax, ay, c);
+      if (ax === bx && ay === by) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        ax += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        ay += sy;
+      }
     }
   }
-}
-function box(x, y, w, h, c) {
-  hline(x, y, w, c);
-  hline(x, y + h - 1, w, c);
-  vline(x, y, h, c);
-  vline(x + w - 1, y, h, c);
-}
-
-// ---- text engine (serif atlas, fractional scales, nearest-neighbour) ----
-function textWidth(str, sx) {
-  let w = 0;
-  for (const ch of str) w += glyphFor(ch).advance * sx;
-  return w;
-}
-// Draw text so the CAP TOP sits at topY. sx/sy may differ (condensed heads).
-// Returns the x position just past the last glyph.
-function drawText(str, x, topY, sx, sy, c) {
-  let pen = x;
-  for (const ch of str) {
-    const g = glyphFor(ch);
-    if (g.w > 0 && g.h > 0) {
-      const gx0 = Math.round(pen + g.f2 * sx);
-      const gy0 = Math.round(topY + (g.f3 - CAP_TOP_EM) * sy);
-      const dw = Math.max(1, Math.ceil(g.w * sx));
-      const dh = Math.max(1, Math.ceil(g.h * sy));
-      for (let dy = 0; dy < dh; dy++) {
-        const sySrc = Math.min(g.h - 1, Math.floor(dy / sy));
-        for (let dx = 0; dx < dw; dx++) {
-          const sxSrc = Math.min(g.w - 1, Math.floor(dx / sx));
-          const bit = sySrc * g.w + sxSrc;
-          if ((g.bytes[bit >> 3] >> (7 - (bit & 7))) & 1) setPx(gx0 + dx, gy0 + dy, c);
+  disc(cx: number, cy: number, r: number, c: RGB): void {
+    const r2 = r * r;
+    for (let y = -r; y <= r; y++) {
+      const w = Math.floor(Math.sqrt(r2 - y * y));
+      this.fill(cx - w, cy + y, w * 2 + 1, 1, c);
+    }
+  }
+  ring(cx: number, cy: number, r: number, c: RGB, t = 2): void {
+    for (let k = 0; k < t; k++) {
+      const rr = r - k;
+      const r2 = rr * rr;
+      const ri = Math.max(0, rr - 1);
+      const ri2 = ri * ri;
+      for (let y = -rr; y <= rr; y++) {
+        for (let x = -rr; x <= rr; x++) {
+          const d2 = x * x + y * y;
+          if (d2 <= r2 && d2 > ri2) this.set(cx + x, cy + y, c);
         }
       }
     }
-    pen += g.advance * sx;
   }
-  return pen;
-}
-// Greedy word wrap. Returns lines as arrays of words.
-function wrapWords(str, maxW, sx) {
-  const words = str.split(' ');
-  const lines = [];
-  let cur = [];
-  let curW = 0;
-  for (const wd of words) {
-    const ww = textWidth(wd, sx);
-    const sp = cur.length > 0 ? textWidth(' ', sx) : 0;
-    if (cur.length > 0 && curW + sp + ww > maxW) {
-      lines.push(cur);
-      cur = [wd];
-      curW = ww;
-    } else {
-      cur.push(wd);
-      curW += sp + ww;
+  // Filled polygon (scanline). pts: [x, y] pairs, integer coords.
+  poly(pts: [number, number][], c: RGB): void {
+    if (pts.length < 3) return;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const [, y] of pts) {
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    for (let y = Math.ceil(minY); y <= Math.floor(maxY); y++) {
+      const xs: number[] = [];
+      for (let i = 0; i < pts.length; i++) {
+        const [x1, y1] = pts[i]!;
+        const [x2, y2] = pts[(i + 1) % pts.length]!;
+        if ((y1 <= y && y2 > y) || (y2 <= y && y1 > y)) {
+          xs.push(x1 + ((y - y1) * (x2 - x1)) / (y2 - y1));
+        }
+      }
+      xs.sort((a, b) => a - b);
+      for (let k = 0; k + 1 < xs.length; k += 2) {
+        this.fill(Math.ceil(xs[k]!), y, Math.floor(xs[k + 1]!) - Math.ceil(xs[k]!) + 1, 1, c);
+      }
     }
   }
-  if (cur.length > 0) lines.push(cur);
-  return lines;
-}
-function drawLines(lines, x, topY, lineH, sx, sy, colorFn) {
-  lines.forEach((words, li) => {
-    let pen = x;
-    words.forEach((wd, wi) => {
-      const col = colorFn ? colorFn(wd, li, wi) : INK;
-      pen = drawText(wd, pen, topY + li * lineH, sx, sy, col);
-      if (wi + 1 < words.length) pen += textWidth(' ', sx);
-    });
-  });
-}
-// Badge: "LABEL | Outlet" — label in red, rest in ink. Picks the largest
-// scale from the ladder that fits maxW. Returns the scale used.
-const BADGE_LADDER = [0.26, 0.24, 0.22, 0.20, 0.18, 0.17, 0.16];
-function drawBadge(badge, x, topY, maxW) {
-  const parts = badge.split(' | ');
-  const label = parts[0];
-  const outlet = parts.length > 1 ? ' | ' + parts.slice(1).join(' | ') : '';
-  let s = BADGE_LADDER[BADGE_LADDER.length - 1];
-  for (const cand of BADGE_LADDER) {
-    if (textWidth(badge, cand) <= maxW) { s = cand; break; }
-  }
-  let pen = drawText(label, x, topY, s, s, RED);
-  if (outlet) pen = drawText(outlet, pen, topY, s, s, INK2);
-  return { scale: s, width: pen - x };
-}
-
-// ---- fit gate (any overflow aborts the run with exit 1) ----
-const fitErrors = [];
-function checkFit(label, w, maxW) {
-  if (w > maxW + 0.5) fitErrors.push(`${label}: ${w.toFixed(1)}px > ${maxW}px`);
-}
-function checkLines(label, n, maxN) {
-  if (n > maxN) fitErrors.push(`${label}: ${n} lines > ${maxN}`);
-}
-function finishFit() {
-  if (fitErrors.length > 0) {
-    for (const e of fitErrors) console.error('FIT FAIL: ' + e);
-    process.exit(1);
+  tri(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, c: RGB): void {
+    this.poly(
+      [
+        [x1, y1],
+        [x2, y2],
+        [x3, y3],
+      ],
+      c,
+    );
   }
 }
 
-// ---- deterministic pseudo-random (fixed-seed LCG, seed 1337) ----
-// No unseeded randomness anywhere in this file: every run draws in the same
-// order, so the output stays byte-identical across runs.
-// state = (1664525 * state + 1013904223) mod 2^32; returns state / 2^32.
-let rngState = 1337;
-function rng() {
-  rngState = (1664525 * rngState + 1013904223) >>> 0;
-  return rngState / 4294967296;
-}
+// ---------------------------------------------------------------- 5x7 font
+// All page text is set in capitals (broadsheet style), so only A-Z, digits
+// and punctuation are needed. Each glyph is 7 rows of 5 cells ('1' = ink).
+// Advance widths are proportional-ish: narrow marks advance 4 units, most
+// letters 6. One unit = 1px at scale 1.
+const GLYPHS: Record<string, string[]> = {
+  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+  B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+  C: ['01110', '10001', '10000', '10000', '10000', '10001', '01110'],
+  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+  E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+  F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
+  G: ['01110', '10001', '10000', '10111', '10001', '10001', '01111'],
+  H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
+  I: ['01110', '00100', '00100', '00100', '00100', '00100', '01110'],
+  J: ['00111', '00010', '00010', '00010', '00010', '10010', '01100'],
+  K: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
+  L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+  M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+  N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
+  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+  P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+  Q: ['01110', '10001', '10001', '10001', '10101', '10010', '01101'],
+  R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+  S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+  U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
+  V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
+  W: ['10001', '10001', '10001', '10101', '10101', '10101', '01010'],
+  X: ['10001', '10001', '01010', '00100', '01010', '10001', '10001'],
+  Y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
+  Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
+  '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+  '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+  '2': ['01110', '10001', '00001', '00110', '01000', '10000', '11111'],
+  '3': ['11111', '00010', '00100', '00010', '00001', '10001', '01110'],
+  '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+  '5': ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
+  '6': ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
+  '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+  '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
+  '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
+  ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
+  '.': ['00000', '00000', '00000', '00000', '00000', '01100', '01100'],
+  ',': ['00000', '00000', '00000', '00000', '01100', '00100', '01000'],
+  ':': ['00000', '01100', '01100', '00000', '01100', '01100', '00000'],
+  ';': ['00000', '01100', '01100', '00000', '01100', '00100', '01000'],
+  '!': ['00100', '00100', '00100', '00100', '00100', '00000', '00100'],
+  '?': ['01110', '10001', '00001', '00110', '00100', '00000', '00100'],
+  "'": ['00100', '00100', '01000', '00000', '00000', '00000', '00000'],
+  '’': ['00100', '00100', '01000', '00000', '00000', '00000', '00000'],
+  '|': ['00100', '00100', '00100', '00100', '00100', '00100', '00100'],
+  '"': ['01010', '01010', '01010', '00000', '00000', '00000', '00000'],
+  '“': ['01010', '01010', '01010', '00000', '00000', '00000', '00000'],
+  '”': ['01010', '01010', '01010', '00000', '00000', '00000', '00000'],
+  '-': ['00000', '00000', '00000', '01110', '00000', '00000', '00000'],
+  '–': ['00000', '00000', '00000', '01110', '00000', '00000', '00000'],
+  '—': ['00000', '00000', '00000', '11111', '00000', '00000', '00000'],
+  '/': ['00001', '00010', '00010', '00100', '01000', '01000', '10000'],
+  '(': ['00010', '00100', '01000', '01000', '01000', '00100', '00010'],
+  ')': ['01000', '00100', '00010', '00010', '00010', '00100', '01000'],
+  '&': ['01100', '10010', '10100', '01000', '10101', '10010', '01101'],
+  '%': ['11001', '11010', '00010', '00100', '01000', '01011', '10011'],
+  $: ['00100', '01111', '10100', '01110', '00101', '11110', '00100'],
+  '#': ['01010', '01010', '11111', '01010', '11111', '01010', '01010'],
+  '@': ['01110', '10001', '10111', '10101', '10110', '10000', '01110'],
+  '+': ['00000', '00100', '00100', '11111', '00100', '00100', '00000'],
+  '*': ['00000', '00100', '10101', '01110', '10101', '00100', '00000'],
+  '=': ['00000', '00000', '11111', '00000', '11111', '00000', '00000'],
+  '<': ['00010', '00100', '01000', '10000', '01000', '00100', '00010'],
+  '>': ['01000', '00100', '00010', '00001', '00010', '00100', '01000'],
+  '[': ['01110', '01000', '01000', '01000', '01000', '01000', '01110'],
+  ']': ['01110', '00010', '00010', '00010', '00010', '00010', '01110'],
+  _: ['00000', '00000', '00000', '00000', '00000', '00000', '11111'],
+  '€': ['00110', '01001', '10000', '11110', '10000', '01001', '00110'],
+  '•': ['00000', '00000', '01100', '01100', '00000', '00000', '00000'],
+  '·': ['00000', '00000', '00000', '00000', '01100', '01100', '00000'],
+  '×': ['00000', '10001', '01010', '00100', '01010', '10001', '00000'],
+  '→': ['00000', '00100', '00010', '11111', '00010', '00100', '00000'],
+};
 
-// ---- scene helpers (all shapes drawn from plain rects and polygons) ----
-const SKY = [220, 232, 240];
-const SKY2 = [206, 222, 233];
-const DUST = [226, 210, 172];
-const DUST2 = [214, 194, 150];
-const NIGHT = [51, 71, 94];
-const NIGHT2 = [43, 60, 82];
-const SEA = [111, 163, 196];
-const SEA2 = [88, 138, 172];
-const LAND = [217, 201, 168];
-const LAND2 = [199, 182, 148];
-const STONE = [185, 169, 140];
-const STONE2 = [165, 148, 120];
-const ROOF = [163, 59, 46];
-const SLATE = [74, 93, 107];
-const LEAF = [122, 148, 106];
-const LEAF2 = [96, 122, 84];
-const SUN = [214, 164, 66];
-const FIRE = [214, 110, 44];
-const FIRE2 = [226, 164, 60];
-const SMOKEC = [205, 205, 200];
-const CLOUDC = [247, 247, 243];
-const WHITE = [250, 247, 242];
-const GOLD = [186, 140, 52];
-
-function skyBands(x, y, w, h, top, bottom) {
-  fillRect(x, y, w, Math.ceil(h / 2), top);
-  fillRect(x, y + Math.ceil(h / 2), w, h - Math.ceil(h / 2), bottom);
+const NARROW = new Set([' ', 'I', '1', '.', ',', ':', ';', '!', "'", '’', '|', '(', ')', '[', ']', '-', '–', '·']);
+function advance(ch: string): number {
+  return NARROW.has(ch) ? 4 : 6;
 }
-function cloud(x, y, s, c) {
-  x += Math.floor(rng() * 5) - 2;
-  y += Math.floor(rng() * 3) - 1;
-  fillRect(x, y + 2 * s, 12 * s, 3 * s, c);
-  fillRect(x + 2 * s, y, 7 * s, 5 * s, c);
-  fillRect(x + 9 * s, y + 1 * s, 4 * s, 4 * s, c);
+function glyphOf(ch: string): string[] {
+  return GLYPHS[ch] ?? GLYPHS['?']!;
 }
-function bird(x, y, s, c) {
-  x += Math.floor(rng() * 5) - 2;
-  y += Math.floor(rng() * 3) - 1;
-  drawLine(x, y, x + 3 * s, y + 2 * s, c);
-  drawLine(x + 3 * s, y + 2 * s, x + 6 * s, y, c);
+function textWidth(s: string, scale: number): number {
+  let w = 0;
+  for (const ch of s) w += advance(ch);
+  if (s.length > 0) w -= 1; // no trailing gap after the last glyph
+  return w * scale;
 }
-function smokePuff(x, y, w, h, c) {
-  fillRect(x, y, w, Math.ceil(h / 3), c);
-  fillRect(x + Math.ceil(w * 0.2), y + Math.ceil(h / 3), Math.ceil(w * 0.8), Math.ceil(h / 3), c);
-  fillRect(x + Math.ceil(w * 0.35), y + Math.ceil(2 * h / 3), Math.ceil(w * 0.65), h - Math.ceil(2 * h / 3), c);
-}
-function stars(x, y, w, h, n, c) {
-  for (let i = 0; i < n; i++) {
-    const sx = x + Math.floor(rng() * Math.max(1, w - 4));
-    const sy = y + Math.floor(rng() * Math.max(1, h - 4));
-    fillRect(sx, sy, 2, 2, c);
-  }
-}
-function flagPole(x, y, h, stripes, cPole) {
-  vline(x, y, h, cPole || INK);
-  const sh = Math.max(3, Math.floor(h / stripes.length / 2));
-  stripes.forEach((col, i) => fillRect(x + 1, y + i * sh, 16, sh, col));
-}
-function figure(x, y, s, shirt, pants) {
-  fillRect(x + 2 * s, y, 3 * s, 3 * s, [212, 178, 140]); // head
-  fillRect(x + 1 * s, y + 3 * s, 5 * s, 5 * s, shirt);   // torso
-  fillRect(x + 1 * s, y + 8 * s, 2 * s, 4 * s, pants);   // leg L
-  fillRect(x + 4 * s, y + 8 * s, 2 * s, 4 * s, pants);   // leg R
-}
-function house(x, y, w, h, wall, roof, win) {
-  fillRect(x, y + Math.ceil(h * 0.32), w, h - Math.ceil(h * 0.32), wall);
-  fillPoly([[x, y + Math.ceil(h * 0.32)], [x + Math.floor(w / 2), y], [x + w, y + Math.ceil(h * 0.32)]], roof);
-  const ww = Math.max(2, Math.floor(w / 6));
-  const cols = Math.max(1, Math.floor((w - ww) / (ww + 3)));
-  for (let i = 0; i < cols; i++) {
-    fillRect(x + 3 + i * (ww + 3), y + Math.ceil(h * 0.45), ww, Math.ceil(h * 0.22), win);
-    fillRect(x + 3 + i * (ww + 3), y + Math.ceil(h * 0.72), ww, Math.ceil(h * 0.22), win);
-  }
-}
-function tower(x, y, w, h, wall, win) {
-  fillRect(x, y, w, h, wall);
-  const ww = Math.max(2, Math.floor(w / 5));
-  for (let r = 0; r < 3; r++) {
-    for (let i = 0; i < 3; i++) {
-      fillRect(x + 3 + i * (ww + 3), y + 4 + r * Math.ceil(h / 3), ww, Math.ceil(h / 6), win);
+// Draw text left-aligned at (x, y); returns the width drawn. All input is
+// uppercased by the caller; unknown chars render as '?'.
+function drawText(cv: Canvas, s: string, x: number, y: number, scale: number, c: RGB, bold = false): number {
+  let cx = x;
+  const off = bold ? Math.max(1, Math.floor(scale / 3)) : 0;
+  for (const ch of s) {
+    const g = glyphOf(ch);
+    for (let r = 0; r < 7; r++) {
+      const row = g[r]!;
+      for (let col = 0; col < 5; col++) {
+        if (row[col] === '1') {
+          cv.fill(cx + col * scale, y + r * scale, scale, scale, c);
+          if (off > 0) cv.fill(cx + col * scale + off, y + r * scale, scale, scale, c);
+        }
+      }
     }
+    cx += advance(ch) * scale;
   }
+  return cx - x - (s.length > 0 ? scale : 0);
 }
-function shipSide(x, y, w, hull, deck) {
-  fillPoly([[x, y], [x + w, y], [x + w - Math.ceil(w * 0.14), y + Math.ceil(w * 0.16)], [x + Math.ceil(w * 0.1), y + Math.ceil(w * 0.16)]], hull);
-  fillRect(x + Math.ceil(w * 0.2), y - Math.ceil(w * 0.09), Math.ceil(w * 0.3), Math.ceil(w * 0.09), deck);
-  vline(x + Math.ceil(w * 0.32), y - Math.ceil(w * 0.26), Math.ceil(w * 0.17), INK);
-  fillRect(x + Math.ceil(w * 0.32) + 1, y - Math.ceil(w * 0.26), 10, 5, RED);
+function drawTextCentered(cv: Canvas, s: string, cx: number, y: number, scale: number, c: RGB, bold = false): void {
+  drawText(cv, s, Math.round(cx - textWidth(s, scale) / 2), y, scale, c, bold);
 }
-function chartBars(x, y, w, h, vals, up, down) {
-  const n = vals.length;
-  const bw = Math.floor(w / (n * 2));
-  vals.forEach((v, i) => {
-    const bh = Math.max(2, Math.round(h * v));
-    fillRect(x + i * 2 * bw + Math.floor(bw / 2), y + h - bh, bw, bh, v >= 0.5 ? up : down);
-  });
+function drawTextRight(cv: Canvas, s: string, xRight: number, y: number, scale: number, c: RGB, bold = false): void {
+  drawText(cv, s, xRight - textWidth(s, scale), y, scale, c, bold);
 }
-function trendLine(pts, c) {
-  for (let i = 0; i + 1 < pts.length; i++) drawLine(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], c);
-}
-function arrowHead(x, y, dx, dy, c) {
-  fillPoly([[x, y], [x - dx * 3 - dy * 2, y - dy * 3 + dx * 2], [x - dx * 3 + dy * 2, y - dy * 3 - dx * 2]], c);
-}
-
-// ---- illustrated scenes: leads (art 285x121) ----
-function sceneL1(x, y, w, h) {
-  skyBands(x, y, w, 55, SKY, SKY2);
-  fillRect(x + w - 28, y + 6, 12, 12, SUN);
-  fillRect(x + w - 32, y + 10, 4, 4, SUN);
-  cloud(x + 14, y + 10, 1, CLOUDC);
-  cloud(x + 150, y + 6, 1, CLOUDC);
-  bird(x + 90, y + 18, 1, INK2);
-  bird(x + 122, y + 12, 1, INK2);
-  fillRect(x, y + 55, w, h - 55, SEA);
-  fillRect(x, y + 92, w, h - 92, SEA2);
-  hline(x + 8, y + 64, 46, [200, 220, 230]);
-  hline(x + 170, y + 70, 52, [200, 220, 230]);
-  hline(x + 10, y + 104, 60, [220, 235, 242]);
-  hline(x + 180, y + 108, 50, [220, 235, 242]);
-  shipSide(x + 28, y + 78, 150, [120, 125, 130], [90, 95, 100]);
-  fillRect(x + 44, y + 56, 22, 9, [178, 60, 44]);
-  fillRect(x + 70, y + 56, 22, 9, [60, 110, 90]);
-  fillRect(x + 96, y + 56, 22, 9, [186, 140, 52]);
-  shipSide(x + 205, y + 88, 60, [140, 145, 150], [110, 115, 120]);
-}
-function sceneL2(x, y, w, h) {
-  skyBands(x, y, w, 58, NIGHT, NIGHT2);
-  stars(x, y, w, 58, 14, [220, 225, 230]);
-  fillRect(x + w - 34, y + 8, 14, 14, [235, 232, 220]);
-  fillRect(x, y + 58, w, h - 58, [70, 100, 130]);
-  fillRect(x, y + 96, w, h - 96, [58, 84, 112]);
-  hline(x + 12, y + 66, 44, [150, 175, 195]);
-  hline(x + 190, y + 72, 48, [150, 175, 195]);
-  hline(x + 60, y + 104, 70, [170, 190, 205]);
-  smokePuff(x + 96, y + 34, 18, 28, SMOKEC);
-  shipSide(x + 40, y + 80, 170, [150, 155, 160], [110, 115, 120]);
-  fillRect(x + 150, y + 70, 12, 8, FIRE);
-  fillRect(x + 153, y + 72, 6, 5, FIRE2);
-  drawLine(x + 222, y + 16, x + 234, y + 28, GOLD);
-  drawLine(x + 234, y + 16, x + 222, y + 28, GOLD);
-  drawLine(x + 228, y + 28, x + 160, y + 66, GOLD);
-  fillRect(x + 232, y + 60, 34, 5, [40, 52, 66]);
-  vline(x + 244, y + 52, 8, [40, 52, 66]);
-}
-function sceneL3(x, y, w, h) {
-  skyBands(x, y, w, 50, DUST, DUST2);
-  fillRect(x + w - 30, y + 8, 12, 12, [232, 200, 130]);
-  cloud(x + 20, y + 12, 1, [240, 228, 200]);
-  fillRect(x, y + 50, w, h - 50, LAND2);
-  fillRect(x, y + 50, w, 3, [180, 162, 128]);
-  // damaged building 1
-  fillRect(x + 16, y + 38, 52, 62, STONE);
-  fillPoly([[x + 16, y + 38], [x + 26, y + 30], [x + 34, y + 38], [x + 44, y + 28], [x + 56, y + 38], [x + 68, y + 38], [x + 68, y + 46], [x + 16, y + 46]], STONE2);
-  fillRect(x + 22, y + 52, 8, 10, [40, 38, 34]);
-  fillRect(x + 38, y + 52, 8, 10, [226, 200, 120]);
-  fillRect(x + 54, y + 52, 8, 10, [40, 38, 34]);
-  fillRect(x + 22, y + 72, 8, 10, [40, 38, 34]);
-  fillRect(x + 38, y + 72, 8, 10, [40, 38, 34]);
-  // damaged building 2
-  fillRect(x + 90, y + 30, 64, 70, STONE2);
-  fillPoly([[x + 90, y + 30], [x + 104, y + 22], [x + 116, y + 30], [x + 132, y + 20], [x + 154, y + 30], [x + 154, y + 38], [x + 90, y + 38]], STONE);
-  fillRect(x + 98, y + 44, 9, 11, [40, 38, 34]);
-  fillRect(x + 116, y + 44, 9, 11, [226, 200, 120]);
-  fillRect(x + 134, y + 44, 9, 11, [40, 38, 34]);
-  fillRect(x + 98, y + 64, 9, 11, [40, 38, 34]);
-  fillRect(x + 116, y + 64, 9, 11, [40, 38, 34]);
-  // building 3
-  fillRect(x + 176, y + 48, 48, 52, STONE);
-  fillPoly([[x + 176, y + 48], [x + 192, y + 40], [x + 208, y + 48], [x + 224, y + 48], [x + 224, y + 54], [x + 176, y + 54]], STONE2);
-  fillRect(x + 184, y + 60, 8, 10, [40, 38, 34]);
-  fillRect(x + 200, y + 60, 8, 10, [40, 38, 34]);
-  // rubble + smoke + figure + warning triangle
-  fillPoly([[x + 60, y + 100], [x + 74, y + 92], [x + 88, y + 100]], [150, 134, 108]);
-  fillPoly([[x + 150, y + 100], [x + 162, y + 93], [x + 174, y + 100]], [150, 134, 108]);
-  smokePuff(x + 100, y + 8, 14, 22, SMOKEC);
-  smokePuff(x + 190, y + 22, 12, 18, SMOKEC);
-  figure(x + 120, y + 88, 1, [120, 90, 70], INK2);
-  fillPoly([[x + 244, y + 22], [x + 252, y + 36], [x + 236, y + 36]], GOLD);
-  drawLine(x + 244, y + 22, x + 252, y + 36, INK);
-  drawLine(x + 252, y + 36, x + 236, y + 36, INK);
-  drawLine(x + 236, y + 36, x + 244, y + 22, INK);
-  drawLine(x + 8, y + 108, x + 30, y + 116, [160, 142, 112]);
-}
-
-// ---- illustrated scenes: grid row 1 (art 168x79) ----
-function sceneG1(x, y, w, h) {
-  skyBands(x, y, w, 34, NIGHT, NIGHT2);
-  stars(x, y, w, 34, 8, [220, 225, 230]);
-  fillRect(x, y + 34, w, h - 34, [120, 110, 95]);
-  fillRect(x + 10, y + 18, 40, 44, STONE);
-  fillPoly([[x + 10, y + 18], [x + 20, y + 12], [x + 30, y + 18], [x + 40, y + 12], [x + 50, y + 18], [x + 50, y + 24], [x + 10, y + 24]], STONE2);
-  fillRect(x + 16, y + 30, 7, 8, [40, 38, 34]);
-  fillRect(x + 28, y + 30, 7, 8, [226, 200, 120]);
-  fillRect(x + 16, y + 44, 7, 8, [40, 38, 34]);
-  fillRect(x + 30, y + 40, 8, 7, FIRE);
-  fillRect(x + 62, y + 26, 36, 36, STONE2);
-  fillRect(x + 68, y + 32, 6, 7, [40, 38, 34]);
-  fillRect(x + 80, y + 32, 6, 7, [40, 38, 34]);
-  fillRect(x + 68, y + 44, 6, 7, [226, 200, 120]);
-  smokePuff(x + 18, y + 2, 12, 14, SMOKEC);
-  fillPoly([[x + 104, y + 62], [x + 112, y + 56], [x + 120, y + 62]], [150, 134, 108]);
-  drawLine(x + 118, y + 62, x + 134, y + 34, INK2);
-  drawLine(x + 124, y + 62, x + 140, y + 34, INK2);
-  hline(x + 122, y + 56, 14, INK2);
-  hline(x + 125, y + 48, 14, INK2);
-  hline(x + 128, y + 40, 14, INK2);
-  figure(x + 142, y + 50, 1, [178, 60, 44], INK2);
-}
-function sceneG2(x, y, w, h) {
-  skyBands(x, y, w, 30, SKY, SKY2);
-  fillRect(x + 8, y + 12, 58, 20, STONE);
-  fillPoly([[x + 8, y + 12], [x + 37, y + 4], [x + 66, y + 12]], ROOF);
-  fillRect(x + 14, y + 20, 6, 6, [40, 38, 34]);
-  fillRect(x + 30, y + 20, 6, 6, [40, 38, 34]);
-  fillRect(x + 46, y + 20, 6, 6, [40, 38, 34]);
-  cloud(x + 100, y + 8, 1, CLOUDC);
-  fillRect(x + 6, y + 34, w - 12, 40, WHITE);
-  box(x + 6, y + 34, w - 12, 40, INK2);
-  hline(x + 8, y + 46, w - 16, [220, 220, 215]);
-  hline(x + 8, y + 58, w - 16, [220, 220, 215]);
-  chartBars(x + 12, y + 40, w - 24, 28, [0.9, 0.72, 0.78, 0.55, 0.38, 0.22], BLUE, RED);
-  trendLine([[x + 14, y + 40], [x + 60, y + 46], [x + 110, y + 52], [x + 150, y + 62]], RED);
-  arrowHead(x + 150, y + 62, 1, 1, RED);
-}
-function sceneG3(x, y, w, h) {
-  skyBands(x, y, w, 36, SKY, SKY2);
-  cloud(x + 12, y + 6, 1, CLOUDC);
-  tower(x + 8, y + 14, 26, 34, STONE, [40, 38, 34]);
-  tower(x + 40, y + 8, 30, 40, STONE2, [40, 38, 34]);
-  tower(x + 76, y + 18, 24, 30, STONE, [226, 200, 120]);
-  fillRect(x, y + 48, w, h - 48, LAND);
-  flagPole(x + 112, y + 10, 26, [[178, 34, 34], WHITE], INK);
-  flagPole(x + 132, y + 10, 26, [[178, 34, 34]], INK);
-  flagPole(x + 152, y + 10, 26, [[0, 110, 110]], INK);
-  fillRect(x + 60, y + 60, 48, 10, [120, 100, 80]);
-  fillRect(x + 66, y + 54, 14, 6, WHITE);
-  fillRect(x + 84, y + 54, 14, 6, WHITE);
-  figure(x + 34, y + 56, 1, [30, 58, 95], INK2);
-  figure(x + 118, y + 56, 1, [120, 90, 70], INK2);
-}
-function sceneG4(x, y, w, h) {
-  skyBands(x, y, w, 36, SKY, SKY2);
-  fillRect(x + w - 24, y + 6, 10, 10, SUN);
-  fillRect(x + 50, y + 34, 68, 30, STONE);
-  fillPoly([[x + 56, y + 34], [x + 66, y + 20], [x + 100, y + 20], [x + 110, y + 34]], SLATE);
-  vline(x + 62, y + 40, 24, WHITE);
-  vline(x + 80, y + 40, 24, WHITE);
-  vline(x + 98, y + 40, 24, WHITE);
-  fillRect(x, y + 64, w, h - 64, LAND);
-  flagPole(x + 14, y + 12, 24, [[230, 140, 40], WHITE, [20, 130, 70]], INK);
-  flagPole(x + 134, y + 12, 24, [[178, 34, 34], [30, 58, 95]], INK);
-  fillRect(x + 118, y + 58, 34, 9, BLUE);
-  fillRect(x + 122, y + 60, 6, 5, WHITE);
-  fillRect(x + 132, y + 60, 6, 5, WHITE);
-  fillRect(x + 142, y + 60, 6, 5, WHITE);
-  figure(x + 30, y + 54, 1, [120, 90, 70], INK2);
-  figure(x + 88, y + 54, 1, [30, 58, 95], INK2);
-}
-function sceneG5(x, y, w, h) {
-  skyBands(x, y, w, 36, SKY, SKY2);
-  cloud(x + 110, y + 6, 1, CLOUDC);
-  fillRect(x + 40, y + 26, 88, 34, STONE);
-  fillPoly([[x + 40, y + 26], [x + 84, y + 12], [x + 128, y + 26]], ROOF);
-  vline(x + 52, y + 32, 28, WHITE);
-  vline(x + 72, y + 32, 28, WHITE);
-  vline(x + 92, y + 32, 28, WHITE);
-  vline(x + 112, y + 32, 28, WHITE);
-  fillRect(x, y + 60, w, h - 60, LAND);
-  flagPole(x + 12, y + 12, 24, [[20, 20, 20], [178, 34, 34], [20, 130, 70]], INK);
-  flagPole(x + 140, y + 12, 24, [[30, 90, 180], [178, 34, 34]], INK);
-  figure(x + 62, y + 48, 1, [30, 58, 95], INK2);
-  figure(x + 92, y + 48, 1, [120, 90, 70], INK2);
-  fillRect(x + 78, y + 56, 12, 4, [212, 178, 140]);
-}
-
-// ---- illustrated scenes: grid row 2 (art 168x79) ----
-function sceneG6(x, y, w, h) {
-  skyBands(x, y, w, 36, SKY, SKY2);
-  fillRect(x + w - 22, y + 6, 10, 10, SUN);
-  cloud(x + 96, y + 8, 1, CLOUDC);
-  fillRect(x, y + 52, w, h - 52, LAND);
-  // Eiffel Tower silhouette with lattice slits and arch cutout
-  fillPoly([[x + 18, y + 62], [x + 34, y + 10], [x + 38, y + 10], [x + 54, y + 62]], INK2);
-  fillRect(x + 30, y + 4, 12, 6, INK2);
-  vline(x + 35, y, 4, INK2);
-  fillRect(x + 22, y + 44, 28, 3, SKY);
-  fillRect(x + 26, y + 28, 20, 3, SKY);
-  fillPoly([[x + 28, y + 62], [x + 36, y + 50], [x + 44, y + 62]], LAND);
-  fillRect(x + 66, y + 56, 10, 4, GOLD);
-  fillRect(x + 80, y + 52, 10, 4, GOLD);
-  chartBars(x + 96, y + 34, 62, 24, [0.3, 0.45, 0.42, 0.62, 0.78, 0.95], BLUE, GOLD);
-  trendLine([[x + 98, y + 52], [x + 120, y + 46], [x + 140, y + 40], [x + 156, y + 36]], BLUE);
-  arrowHead(x + 156, y + 36, 1, -1, BLUE);
-}
-function sceneG7(x, y, w, h) {
-  skyBands(x, y, w, 36, [200, 205, 210], [190, 196, 202]);
-  for (let i = 0; i < 7; i++) {
-    const rx = x + 8 + i * 22;
-    drawLine(rx, y + 4, rx - 6, y + 16, [140, 148, 156]);
-    drawLine(rx + 10, y + 18, rx + 4, y + 30, [140, 148, 156]);
-  }
-  fillRect(x, y + 48, w, h - 48, LAND2);
-  fillRect(x + 10, y + 30, 66, 28, STONE2);
-  fillPoly([[x + 10, y + 30], [x + 43, y + 20], [x + 76, y + 30]], SLATE);
-  fillRect(x + 18, y + 12, 8, 20, STONE2);
-  fillRect(x + 32, y + 8, 8, 24, STONE2);
-  smokePuff(x + 16, y, 12, 12, SMOKEC);
-  fillRect(x + 20, y + 40, 7, 8, [40, 38, 34]);
-  fillRect(x + 36, y + 40, 7, 8, [226, 200, 120]);
-  fillRect(x + 52, y + 40, 7, 8, [40, 38, 34]);
-  chartBars(x + 92, y + 30, 66, 26, [0.9, 0.75, 0.8, 0.55, 0.4, 0.28], [110, 115, 120], RED);
-  trendLine([[x + 94, y + 32], [x + 116, y + 38], [x + 136, y + 42], [x + 154, y + 50]], RED);
-  arrowHead(x + 154, y + 50, 1, 1, RED);
-}
-function sceneG8(x, y, w, h) {
-  skyBands(x, y, w, 30, NIGHT, NIGHT2);
-  stars(x, y, w, 30, 6, [220, 225, 230]);
-  // floodlights
-  vline(x + 10, y + 4, 22, INK2);
-  vline(x + w - 12, y + 4, 22, INK2);
-  fillPoly([[x + 6, y + 4], [x + 16, y + 4], [x + 34, y + 30], [x + 2, y + 30]], [230, 225, 180]);
-  fillPoly([[x + w - 18, y + 4], [x + w - 8, y + 4], [x + w - 4, y + 30], [x + w - 36, y + 30]], [230, 225, 180]);
-  // scoreboard
-  fillRect(x + 56, y + 6, 56, 20, WHITE);
-  box(x + 56, y + 6, 56, 20, INK);
-  drawText('4-4', x + 56 + 7, y + 8, 0.32, 0.32, INK);
-  // stands with crowd
-  fillRect(x, y + 30, w, 14, [60, 66, 78]);
-  fillRect(x, y + 44, w, 12, [48, 54, 66]);
-  for (let r = 0; r < 2; r++) {
-    for (let i = 0; i < 24; i++) {
-      const cx = x + 4 + i * 7;
-      const cy = y + 33 + r * 11;
-      const cc = (i + r) % 3 === 0 ? RED : ((i + r) % 3 === 1 ? WHITE : GOLD);
-      fillRect(cx, cy, 3, 3, cc);
-    }
-  }
-  // pitch, goal, ball
-  fillRect(x, y + 56, w, h - 56, LEAF);
-  fillRect(x, y + 56, w, 2, LEAF2);
-  hline(x, y + 66, w, [235, 235, 230]);
-  box(x + 12, y + 60, 22, 10, WHITE);
-  fillRect(x + 128, y + 68, 5, 5, WHITE);
-  box(x + 128, y + 68, 5, 5, INK);
-}
-function sceneG9(x, y, w, h) {
-  skyBands(x, y, w, 36, SKY, SKY2);
-  cloud(x + 12, y + 6, 1, CLOUDC);
-  // capitol dome
-  fillRect(x + 52, y + 34, 64, 28, STONE);
-  fillPoly([[x + 58, y + 34], [x + 70, y + 18], [x + 98, y + 18], [x + 110, y + 34]], WHITE);
-  fillRect(x + 80, y + 12, 8, 6, WHITE);
-  vline(x + 84, y + 2, 10, INK);
-  fillRect(x + 85, y + 2, 10, 5, RED);
-  vline(x + 62, y + 40, 22, WHITE);
-  vline(x + 80, y + 40, 22, WHITE);
-  vline(x + 98, y + 40, 22, WHITE);
-  fillRect(x, y + 62, w, h - 62, LAND);
-  // ballot box + papers + voter
-  fillRect(x + 16, y + 50, 22, 16, INK);
-  fillRect(x + 20, y + 46, 14, 4, INK);
-  drawLine(x + 24, y + 44, x + 30, y + 36, INK2);
-  fillRect(x + 28, y + 32, 10, 6, WHITE);
-  box(x + 28, y + 32, 10, 6, INK2);
-  figure(x + 128, y + 50, 1, [178, 60, 44], INK2);
-  fillRect(x + 142, y + 44, 12, 8, WHITE);
-  box(x + 142, y + 44, 12, 8, INK2);
-}
-function sceneG10(x, y, w, h) {
-  skyBands(x, y, w, 36, SKY, SKY2);
-  fillRect(x + 12, y + 6, 10, 10, SUN);
-  cloud(x + 90, y + 8, 1, CLOUDC);
-  fillRect(x, y + 52, w, h - 52, LAND);
-  // Sydney tower needle + pod
-  fillRect(x + 24, y + 8, 4, 48, INK2);
-  fillRect(x + 16, y + 30, 20, 8, INK2);
-  fillRect(x + 20, y + 56, 12, 6, INK2);
-  fillRect(x + 44, y + 40, 22, 16, STONE);
-  fillPoly([[x + 44, y + 40], [x + 55, y + 32], [x + 66, y + 40]], ROOF);
-  chartBars(x + 84, y + 32, 72, 26, [0.35, 0.5, 0.45, 0.65, 0.8, 0.95], GOLD, BLUE);
-  trendLine([[x + 86, y + 50], [x + 108, y + 44], [x + 130, y + 40], [x + 152, y + 34]], GOLD);
-  arrowHead(x + 152, y + 34, 1, -1, GOLD);
-  fillRect(x + 88, y + 60, 8, 4, GOLD);
-  fillRect(x + 100, y + 58, 8, 4, GOLD);
-}
-
-// ============================================================
-// FASE 1 — GRID LAYOUT SEBAGAI DATA (bukan kode gambar).
-// Satu struktur data mendeskripsikan semua zona dan kartu.
-// Rendering (Fase 2) hanya membaca struktur ini; tidak ada
-// koordinat yang di-hardcode di kode gambar.
-// ============================================================
-
-// ---- typographic parameters (named constants, not coordinates) ----
-const LEAD_HEAD_SX = 0.47, LEAD_HEAD_SY = 0.47, LEAD_HEAD_LH = 26;
-const LEAD_SUB_S = 0.28, LEAD_SUB_LH = 18;
-const GRID_HEAD_SX = 0.30, GRID_HEAD_SY = 0.34, GRID_HEAD_LH = 19;
-const GRID_SUB_S = 0.28, GRID_SUB_LH = 15;
-const BADGE_LH = 13;
-const LEAD_ART_H = 121, GRID_ART_H = 79;
-const LEAD_PAD = 10, LEAD_PAD_TOP = 8, GRID_PAD = 6, GRID_PAD_TOP = 6;
-
-// ---- story data (exact wording, verified facts only) ----
-const LEAD_DATA = [
-  { badge: 'CONFIRMED | Gulf News', head: 'Trump: sink ships that defy Iran blockade', sub: 'Fresh strikes may wait until 2027', scene: sceneL1 },
-  { badge: 'OFFICIAL | AP', head: 'Kyiv: we sank a Russian warship', sub: 'Zelenskyy confirms hit off Benghazi', scene: sceneL2 },
-  { badge: 'CONFIRMED | Oxfam', head: "Gaza now a 'toxic wasteland'", sub: 'Over 99% of Gaza is contaminated', scene: sceneL3 },
-];
-const GRID_DATA = [
-  { badge: 'CONFIRMED | AA', head: 'Kyiv-region strike death toll hits 11', sub: 'Rescuers search rubble', scene: sceneG1 },
-  { badge: 'CONFIRMED | Yonhap', head: 'KOSPI plunges 3.3% on AI fears', sub: 'Tech sell-off spreads', scene: sceneG2 },
-  { badge: 'CONFIRMED | CNA', head: 'Singapore, China sign 29 deals', sub: '29 pacts at forum', scene: sceneG3 },
-  { badge: 'CONFIRMED | The Hindu', head: 'Modi hosts Nepal PM, unveils aid', sub: '15,000-crore package', scene: sceneG4 },
-  { badge: 'CONFIRMED | BBC', head: 'Kenya, DR Congo restore full ties', sub: 'Full ties restored', scene: sceneG5 },
-  { badge: 'CONFIRMED | Euronews', head: 'France unveils 15bn euros', sub: 'Pledged in Paris', scene: sceneG6 },
-  { badge: 'CONFIRMED | Reuters', head: 'France downturn at six-month low', sub: 'Services PMI 46.6', scene: sceneG7 },
-  { badge: 'CONFIRMED | Serie A', head: 'Atalanta 4-4 Inter in eight-goal epic', sub: 'Eight-goal thriller', scene: sceneG8 },
-  { badge: 'REPORTED | AA', head: 'Trump blames voters after loss', sub: 'Ignored Iran warnings', scene: sceneG9 },
-  { badge: 'REPORTED | SMH', head: 'Australia warns of slower growth', sub: 'Slower growth ahead', scene: sceneG10 },
-];
-const KPI_DATA = [
-  { num: '11', label: 'killed in Dymer strike' },
-  { num: '3.3%', label: 'KOSPI fall on AI fears' },
-  { num: '29', label: 'Singapore-China deals' },
-  { num: 'EUR 15bn', label: 'Choose France pledges' },
-];
-const ALSO_TEXT = 'ALSO | Guterres rues COP31 flop | Iran imposes power cuts | Venezuela talks conclude | Gaza lead-poisoning death | UK: Burnham eyes EU reset | Wall St futures climb';
-const FOOT1 = 'DATE CHECK: COP31 collapse, Bahrain radar claim and 186 drones were 22 NOV - NOT today.';
-const FOOT2 = "CONFIRMED = 2+ outlets | OFFICIAL = on the record | REPORTED = one outlet | CLAIM = one side's account";
-
-// ---- badge measuring (scale ladder; exact outlet spelling kept) ----
-function measureBadge(badge, maxW) {
-  const parts = badge.split(' | ');
-  const label = parts[0];
-  const outlet = parts.length > 1 ? ' | ' + parts.slice(1).join(' | ') : '';
-  let s = BADGE_LADDER[BADGE_LADDER.length - 1];
-  for (const cand of BADGE_LADDER) {
-    if (textWidth(badge, cand) <= maxW) { s = cand; break; }
-  }
-  return { scale: s, label, outlet, width: textWidth(badge, s) };
-}
-
-// ---- build the grid data structure ----
-function buildLayout() {
-  const G = {
-    canvas: { x: 0, y: 0, w: 1024, h: 1024 },
-    masthead: { x: 38, y: 12, w: 948, h: 56, date: 'MONDAY, 23 NOVEMBER 2026', tag: 'THE WORLD IN ONE DAY' },
-    ticker: { x: 38, y: 76, w: 948, h: 30, label: 'TOP STORY', head: 'Trump: sink ships that defy Iran blockade' },
-    kpi: { x: 38, y: 114, w: 948, h: 72, cells: [] },
-    leads: [],
-    grid: [],
-    also: { x: 38, y: 906, w: 948, h: 64, text: ALSO_TEXT, lines: [] },
-    footer: { x: 38, y: 978, w: 948, h: 42, line1: FOOT1, line2: FOOT2 },
+// Greedy word wrap to maxWidth px at the given scale. A word longer than
+// maxWidth is hard-split by characters. Returns lines (never empty strings).
+function wrapText(s: string, maxWidth: number, scale: number): string[] {
+  const words = s.split(' ').filter((w) => w.length > 0);
+  const lines: string[] = [];
+  let cur = '';
+  const push = (line: string) => {
+    if (line.length > 0) lines.push(line);
   };
-  // KPI: 4 cells tiling the KPI zone
-  const cellW = G.kpi.w / 4;
-  KPI_DATA.forEach((k, i) => {
-    G.kpi.cells.push({ x: G.kpi.x + i * cellW, y: G.kpi.y, w: cellW, h: G.kpi.h, num: k.num, label: k.label });
-  });
-  // Leads: 3 cards, 305 wide; leftover 33px split 16/17 across 2 gaps
-  const leadW = 305, leadH = 280, leadY = 194;
-  const leadGapTotal = G.masthead.w - 3 * leadW;
-  const leadGap1 = Math.floor(leadGapTotal / 2);
-  const leadGap2 = leadGapTotal - leadGap1;
-  const leadX = [G.masthead.x, G.masthead.x + leadW + leadGap1, G.masthead.x + 2 * leadW + leadGap1 + leadGap2];
-  LEAD_DATA.forEach((d, i) => {
-    const card = { x: leadX[i], y: leadY, w: leadW, h: leadH, badge: d.badge, head: d.head, sub: d.sub, scene: d.scene };
-    finishCard(card, LEAD_PAD, LEAD_PAD_TOP, LEAD_ART_H, 285, LEAD_HEAD_SX, LEAD_HEAD_SY, LEAD_HEAD_LH, LEAD_SUB_S, LEAD_SUB_LH, 5, 5);
-    G.leads.push(card);
-  });
-  // Grid: 5 cols x 2 rows, 180 wide, 12px gaps, 204 tall, 8px row gap
-  const gridW = 180, gridH = 204, gridGap = 12, gridRowGap = 8, gridY0 = 482;
-  GRID_DATA.forEach((d, i) => {
-    const row = Math.floor(i / 5);
-    const col = i % 5;
-    const card = { x: G.masthead.x + col * (gridW + gridGap), y: gridY0 + row * (gridH + gridRowGap), w: gridW, h: gridH, badge: d.badge, head: d.head, sub: d.sub, scene: d.scene };
-    finishCard(card, GRID_PAD, GRID_PAD_TOP, GRID_ART_H, 168, GRID_HEAD_SX, GRID_HEAD_SY, GRID_HEAD_LH, GRID_SUB_S, GRID_SUB_LH, 4, 4);
-    G.grid.push(card);
-  });
-  // ALSO: pre-wrap into at most 2 lines inside its zone
-  G.also.lines = wrapWords(G.also.text, G.also.w, 0.28);
-  checkLines('ALSO', G.also.lines.length, 2);
-  for (const ln of G.also.lines) checkFit('ALSO line', textWidth(ln.join(' '), 0.28), G.also.w);
-  checkLayout(G);
-  return G;
-}
-
-// Fill in one card's art rect, wrapped lines and text Y positions.
-function finishCard(card, pad, padTop, artH, textW, hsx, hsy, hlh, ss, slh, gap1, gap2) {
-  card.art = { x: card.x + pad, y: card.y + padTop, w: card.w - 2 * pad, h: artH };
-  card.headLines = wrapWords(card.head, textW, hsx);
-  card.subLines = wrapWords(card.sub, textW, ss);
-  checkLines('headline ' + card.head, card.headLines.length, 3);
-  checkLines('subline ' + card.sub, card.subLines.length, 2);
-  for (const ln of card.headLines) checkFit('head line', textWidth(ln.join(' '), hsx), textW);
-  for (const ln of card.subLines) checkFit('sub line', textWidth(ln.join(' '), ss), textW);
-  card.badgeM = measureBadge(card.badge, textW);
-  checkFit('badge ' + card.badge, card.badgeM.width, textW);
-  const textH = BADGE_LH + gap1 + card.headLines.length * hlh + gap2 + card.subLines.length * slh;
-  const textAreaTop = card.y + padTop + artH;
-  const textAreaH = card.h - padTop - artH;
-  card.textY = textAreaTop + Math.floor((textAreaH - textH) / 2);
-  card.headY = card.textY + BADGE_LH + gap1;
-  card.subY = card.headY + card.headLines.length * hlh + gap2;
-  card.headLH = hlh;
-  card.subLH = slh;
-  card.headSX = hsx;
-  card.headSY = hsy;
-  card.subS = ss;
-}
-
-// ---- Phase 1 boundary check: inside canvas, no overlaps, art inside card ----
-function rectsOverlap(a, b) {
-  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-}
-function checkInside(name, r, outer) {
-  if (r.x < outer.x || r.y < outer.y || r.x + r.w > outer.x + outer.w || r.y + r.h > outer.y + outer.h) {
-    fitErrors.push('LAYOUT ' + name + ' outside canvas/card');
+  for (const word of words) {
+    const trial = cur.length === 0 ? word : cur + ' ' + word;
+    if (textWidth(trial, scale) <= maxWidth) {
+      cur = trial;
+      continue;
+    }
+    if (cur.length > 0) push(cur);
+    // The word itself may be too long: split it.
+    let rest = word;
+    while (textWidth(rest, scale) > maxWidth) {
+      let cut = rest.length;
+      while (cut > 1 && textWidth(rest.slice(0, cut), scale) > maxWidth) cut--;
+      push(rest.slice(0, cut));
+      rest = rest.slice(cut);
+    }
+    cur = rest;
   }
+  push(cur);
+  return lines.length === 0 ? [''] : lines;
 }
-function checkLayout(G) {
-  const c = G.canvas;
-  const zones = [G.masthead, G.ticker, G.kpi, G.also, G.footer, ...G.leads, ...G.grid];
-  for (const z of zones) checkInside('zone', z, c);
-  for (let i = 0; i < zones.length; i++) {
-    for (let j = i + 1; j < zones.length; j++) {
-      if (rectsOverlap(zones[i], zones[j])) fitErrors.push('LAYOUT overlap zones ' + i + ' & ' + j);
+
+// ---------------------------------------------------------------- world map
+// Land mask: 96 columns x 48 rows, equirectangular, 3.75 degrees per cell.
+// Each row lists inclusive [first, last] column ranges that are land.
+// Rows 0..38 cover lat 90..-56.25 (the map's used extent); rows 39..47 are
+// empty ocean (Southern Ocean) and are not drawn. Continents are drawn as
+// CONTIGUOUS filled cells (solid shapes), never separated dots: the 22 Nov
+// v4 map failed because its dots + halos merged into a smudge at 300px.
+const MAP_LAND: number[][][] = [
+  [], // row 0: 90..86.25N
+  [[25, 29], [37, 40]],
+  [[24, 30], [33, 41]],
+  [[22, 31], [33, 42]],
+  [[4, 10], [20, 31], [34, 41], [66, 95]],
+  [[3, 11], [16, 32], [35, 41], [52, 56], [64, 95]],
+  [[3, 12], [15, 33], [36, 39], [42, 44], [50, 57], [60, 95]],
+  [[4, 13], [14, 34], [37, 39], [42, 44], [50, 95]],
+  [[5, 12], [13, 35], [46, 48], [51, 95]],
+  [[12, 36], [46, 48], [49, 95]],
+  [[12, 35], [46, 95]],
+  [[10, 30], [46, 95]],
+  [[9, 31], [45, 95]],
+  [[9, 30], [45, 48], [51, 53], [55, 70], [72, 96]],
+  [[10, 29], [44, 90]],
+  [[11, 28], [44, 90]],
+  [[12, 26], [46, 74], [80, 88]],
+  [[13, 25], [44, 61], [70, 80]],
+  [[14, 24], [43, 60], [70, 80]],
+  [[16, 22], [42, 58], [70, 79]],
+  [[17, 21], [42, 52], [56, 61], [73, 79]],
+  [[24, 30], [42, 50], [55, 60], [74, 79]],
+  [[25, 34], [43, 60], [76, 82]],
+  [[25, 36], [47, 55], [74, 84]],
+  [[26, 37], [47, 58], [79, 85]],
+  [[26, 38], [48, 55], [80, 88]],
+  [[27, 38], [48, 57], [84, 90]],
+  [[28, 38], [49, 60], [85, 90]],
+  [[28, 37], [49, 60], [82, 84]],
+  [[29, 36], [49, 60], [79, 88]],
+  [[29, 35], [50, 55], [78, 89]],
+  [[30, 34], [50, 54], [78, 89]],
+  [[30, 33], [50, 53], [79, 88]],
+  [[30, 32], [50, 52], [80, 87], [92, 94]],
+  [[30, 32], [82, 83], [92, 95]],
+  [[30, 31], [93, 94]],
+  [[30, 31]],
+  [[30, 31]],
+  [[30, 31]],
+  [], [], [], [], [], [], [], [], [],
+];
+const MAP_COLS = 96;
+const MAP_ROWS_USED = 39; // rows 0..38
+const MAP_TOP_LAT = 90;
+const MAP_BOT_LAT = -56.25;
+
+function drawMap(cv: Canvas, x0: number, y0: number, w: number, h: number): void {
+  cv.fill(x0, y0, w, h, SEA);
+  // Faint graticule every 30 degrees (8 cells) so the sea reads as a map.
+  const grat: RGB = [203, 211, 217];
+  for (let c = 8; c < MAP_COLS; c += 8) {
+    const gx = Math.round(x0 + (c / MAP_COLS) * w);
+    cv.vline(gx, y0, h, grat);
+  }
+  for (let r = 8; r < MAP_ROWS_USED; r += 8) {
+    const gy = Math.round(y0 + (r / MAP_ROWS_USED) * h);
+    cv.hline(x0, gy, w, grat);
+  }
+  const cw = w / MAP_COLS;
+  const ch = h / MAP_ROWS_USED;
+  for (let r = 0; r < MAP_ROWS_USED; r++) {
+    for (const [a, b] of MAP_LAND[r]!) {
+      for (let c = a; c <= b; c++) {
+        // +1px overlap so neighbouring cells merge into one solid shape.
+        cv.fill(x0 + c * cw, y0 + r * ch, cw + 1, ch + 1, (r + c) % 7 === 0 ? LAND2 : LAND);
+      }
     }
   }
-  for (const cell of G.kpi.cells) checkInside('kpi cell', cell, G.kpi);
-  for (let i = 0; i < G.kpi.cells.length; i++) {
-    for (let j = i + 1; j < G.kpi.cells.length; j++) {
-      if (rectsOverlap(G.kpi.cells[i], G.kpi.cells[j])) fitErrors.push('LAYOUT overlap kpi cells');
+  cv.rect(x0, y0, w, h, INK2, 1);
+}
+
+function mapXY(x0: number, y0: number, w: number, h: number, lat: number, lon: number): [number, number] {
+  const x = x0 + ((lon + 180) / 360) * w;
+  const y = y0 + ((MAP_TOP_LAT - lat) / (MAP_TOP_LAT - MAP_BOT_LAT)) * h;
+  return [Math.round(x), Math.round(y)];
+}
+
+// ---------------------------------------------------------------- pictograms
+// Each motif draws a simple hand-drawn pictogram inside the box (x, y, w, h).
+// s = min(w, h) drives all proportions; accent is the story colour.
+type Motif =
+  | 'ship'
+  | 'burst'
+  | 'globe'
+  | 'chart'
+  | 'flags'
+  | 'doc'
+  | 'ball'
+  | 'flame'
+  | 'chip'
+  | 'star'
+  | 'scales'
+  | 'satellite'
+  | 'leaf'
+  | 'ballot';
+
+function drawMotif(cv: Canvas, motif: Motif, x: number, y: number, w: number, h: number, accent: RGB): void {
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const s = Math.min(w, h);
+  const u = s / 100; // 1 unit = 1% of box size
+  switch (motif) {
+    case 'ship': {
+      // Hull + mast + flag + waves.
+      cv.poly(
+        [
+          [cx - 42 * u, cy + 8 * u],
+          [cx + 42 * u, cy + 8 * u],
+          [cx + 30 * u, cy + 34 * u],
+          [cx - 30 * u, cy + 34 * u],
+        ],
+        accent,
+      );
+      cv.vline(Math.round(cx), Math.round(cy - 38 * u), Math.round(48 * u), INK, Math.max(2, Math.round(3 * u)));
+      cv.tri(cx, cy - 38 * u, cx + 26 * u, cy - 28 * u, cx, cy - 18 * u, RED);
+      cv.hline(Math.round(cx - 44 * u), Math.round(cy + 42 * u), Math.round(88 * u), INK2, Math.max(1, Math.round(2 * u)));
+      break;
     }
-  }
-  for (const card of [...G.leads, ...G.grid]) {
-    checkInside('art', card.art, card);
-    if (card.subY + card.subLines.length * card.subLH > card.y + card.h) {
-      fitErrors.push('LAYOUT text overflows card ' + card.head);
+    case 'burst': {
+      // 8-point explosion star.
+      const pts: [number, number][] = [];
+      for (let k = 0; k < 16; k++) {
+        const ang = (k * Math.PI) / 8 - Math.PI / 2;
+        const r = k % 2 === 0 ? 46 * u : 18 * u;
+        pts.push([cx + Math.cos(ang) * r, cy + Math.sin(ang) * r]);
+      }
+      cv.poly(pts, accent);
+      cv.disc(Math.round(cx), Math.round(cy), Math.max(3, Math.round(11 * u)), INK);
+      break;
     }
-  }
-  if (fitErrors.length === 0) {
-    console.log('LAYOUT OK: ' + zones.length + ' zones, 4 kpi cells, 13 cards, 0 overlaps, all inside 1024x1024');
+    case 'globe': {
+      cv.ring(Math.round(cx), Math.round(cy), Math.max(4, Math.round(40 * u)), accent, Math.max(2, Math.round(4 * u)));
+      cv.hline(Math.round(cx - 40 * u), Math.round(cy), Math.round(80 * u), accent, Math.max(2, Math.round(3 * u)));
+      cv.vline(Math.round(cx), Math.round(cy - 40 * u), Math.round(80 * u), accent, Math.max(2, Math.round(3 * u)));
+      cv.disc(Math.round(cx), Math.round(cy), Math.max(2, Math.round(7 * u)), accent);
+      break;
+    }
+    case 'chart': {
+      cv.vline(Math.round(cx - 36 * u), Math.round(cy - 36 * u), Math.round(72 * u), INK, Math.max(2, Math.round(3 * u)));
+      cv.hline(Math.round(cx - 36 * u), Math.round(cy + 36 * u), Math.round(76 * u), INK, Math.max(2, Math.round(3 * u)));
+      const bars = [18, 30, 44];
+      bars.forEach((bh, i) => {
+        cv.fill(cx - 26 * u + i * 26 * u, cy + 32 * u - bh * u, 16 * u, bh * u, accent);
+      });
+      cv.line(cx - 30 * u, cy + 18 * u, cx + 38 * u, cy - 32 * u, RED);
+      cv.tri(cx + 38 * u, cy - 32 * u, cx + 24 * u, cy - 32 * u, cx + 38 * u, cy - 18 * u, RED);
+      break;
+    }
+    case 'flags': {
+      cv.vline(Math.round(cx - 18 * u), Math.round(cy - 34 * u), Math.round(70 * u), INK, Math.max(2, Math.round(3 * u)));
+      cv.vline(Math.round(cx + 18 * u), Math.round(cy - 34 * u), Math.round(70 * u), INK, Math.max(2, Math.round(3 * u)));
+      cv.tri(cx - 18 * u, cy - 34 * u, cx + 12 * u, cy - 24 * u, cx - 18 * u, cy - 14 * u, accent);
+      cv.tri(cx + 18 * u, cy - 34 * u, cx + 48 * u, cy - 24 * u, cx + 18 * u, cy - 14 * u, RED);
+      cv.hline(Math.round(cx - 40 * u), Math.round(cy + 38 * u), Math.round(80 * u), INK, Math.max(2, Math.round(3 * u)));
+      break;
+    }
+    case 'doc': {
+      cv.fill(cx - 30 * u, cy - 36 * u, 60 * u, 72 * u, WHITE);
+      cv.rect(Math.round(cx - 30 * u), Math.round(cy - 36 * u), Math.round(60 * u), Math.round(72 * u), INK, Math.max(2, Math.round(3 * u)));
+      cv.hline(Math.round(cx - 20 * u), Math.round(cy - 20 * u), Math.round(40 * u), INK2, Math.max(1, Math.round(3 * u)));
+      cv.hline(Math.round(cx - 20 * u), Math.round(cy - 6 * u), Math.round(40 * u), INK2, Math.max(1, Math.round(3 * u)));
+      cv.hline(Math.round(cx - 20 * u), Math.round(cy + 8 * u), Math.round(28 * u), INK2, Math.max(1, Math.round(3 * u)));
+      cv.disc(Math.round(cx + 16 * u), Math.round(cy + 22 * u), Math.max(3, Math.round(9 * u)), accent);
+      break;
+    }
+    case 'ball': {
+      cv.ring(Math.round(cx), Math.round(cy), Math.max(4, Math.round(38 * u)), INK, Math.max(2, Math.round(4 * u)));
+      const pr = 12 * u;
+      const pent: [number, number][] = [];
+      for (let k = 0; k < 5; k++) {
+        const ang = (k * 2 * Math.PI) / 5 - Math.PI / 2;
+        pent.push([cx + Math.cos(ang) * pr, cy + Math.sin(ang) * pr]);
+      }
+      cv.poly(pent, INK);
+      for (let k = 0; k < 5; k++) {
+        const ang = (k * 2 * Math.PI) / 5 - Math.PI / 2;
+        cv.line(cx + Math.cos(ang) * pr, cy + Math.sin(ang) * pr, cx + Math.cos(ang) * 36 * u, cy + Math.sin(ang) * 36 * u, INK2);
+      }
+      break;
+    }
+    case 'flame': {
+      cv.poly(
+        [
+          [cx, cy - 44 * u],
+          [cx + 26 * u, cy - 6 * u],
+          [cx + 30 * u, cy + 18 * u],
+          [cx + 14 * u, cy + 40 * u],
+          [cx - 14 * u, cy + 40 * u],
+          [cx - 30 * u, cy + 18 * u],
+          [cx - 26 * u, cy - 6 * u],
+        ],
+        RED,
+      );
+      cv.poly(
+        [
+          [cx, cy - 12 * u],
+          [cx + 13 * u, cy + 10 * u],
+          [cx + 8 * u, cy + 30 * u],
+          [cx - 8 * u, cy + 30 * u],
+          [cx - 13 * u, cy + 10 * u],
+        ],
+        [232, 160, 32],
+      );
+      break;
+    }
+    case 'chip': {
+      cv.rect(Math.round(cx - 26 * u), Math.round(cy - 26 * u), Math.round(52 * u), Math.round(52 * u), INK, Math.max(2, Math.round(3 * u)));
+      cv.fill(cx - 13 * u, cy - 13 * u, 26 * u, 26 * u, accent);
+      for (let k = -1; k <= 1; k++) {
+        cv.hline(Math.round(cx - 40 * u), Math.round(cy + k * 16 * u), Math.round(14 * u), INK, Math.max(1, Math.round(3 * u)));
+        cv.hline(Math.round(cx + 26 * u), Math.round(cy + k * 16 * u), Math.round(14 * u), INK, Math.max(1, Math.round(3 * u)));
+        cv.vline(Math.round(cx + k * 16 * u), Math.round(cy - 40 * u), Math.round(14 * u), INK, Math.max(1, Math.round(3 * u)));
+        cv.vline(Math.round(cx + k * 16 * u), Math.round(cy + 26 * u), Math.round(14 * u), INK, Math.max(1, Math.round(3 * u)));
+      }
+      break;
+    }
+    case 'star': {
+      cv.poly(
+        [
+          [cx, cy - 44 * u],
+          [cx + 12 * u, cy - 12 * u],
+          [cx + 44 * u, cy],
+          [cx + 12 * u, cy + 12 * u],
+          [cx, cy + 44 * u],
+          [cx - 12 * u, cy + 12 * u],
+          [cx - 44 * u, cy],
+          [cx - 12 * u, cy - 12 * u],
+        ],
+        accent,
+      );
+      cv.disc(Math.round(cx), Math.round(cy), Math.max(2, Math.round(7 * u)), WHITE);
+      break;
+    }
+    case 'scales': {
+      cv.vline(Math.round(cx), Math.round(cy - 38 * u), Math.round(76 * u), INK, Math.max(2, Math.round(3 * u)));
+      cv.hline(Math.round(cx - 34 * u), Math.round(cy - 30 * u), Math.round(68 * u), INK, Math.max(2, Math.round(3 * u)));
+      cv.hline(Math.round(cx - 22 * u), Math.round(cy + 38 * u), Math.round(44 * u), INK, Math.max(2, Math.round(3 * u)));
+      cv.tri(cx - 34 * u, cy - 30 * u, cx - 44 * u, cy - 2 * u, cx - 24 * u, cy - 2 * u, accent);
+      cv.tri(cx + 34 * u, cy - 30 * u, cx + 44 * u, cy - 2 * u, cx + 24 * u, cy - 2 * u, accent);
+      break;
+    }
+    case 'satellite': {
+      cv.fill(cx - 34 * u, cy - 10 * u, 22 * u, 20 * u, accent);
+      cv.rect(Math.round(cx - 34 * u), Math.round(cy - 10 * u), Math.round(22 * u), Math.round(20 * u), INK, Math.max(1, Math.round(2 * u)));
+      cv.fill(cx + 14 * u, cy - 10 * u, 22 * u, 20 * u, accent);
+      cv.rect(Math.round(cx + 14 * u), Math.round(cy - 10 * u), Math.round(22 * u), Math.round(20 * u), INK, Math.max(1, Math.round(2 * u)));
+      cv.fill(cx - 12 * u, cy - 14 * u, 26 * u, 28 * u, INK);
+      cv.line(cx + 12 * u, cy - 14 * u, cx + 30 * u, cy - 34 * u, INK);
+      cv.disc(Math.round(cx + 30 * u), Math.round(cy - 34 * u), Math.max(2, Math.round(4 * u)), RED);
+      break;
+    }
+    case 'leaf': {
+      cv.poly(
+        [
+          [cx, cy - 42 * u],
+          [cx + 30 * u, cy - 10 * u],
+          [cx + 18 * u, cy + 30 * u],
+          [cx - 18 * u, cy + 30 * u],
+          [cx - 30 * u, cy - 10 * u],
+        ],
+        accent,
+      );
+      cv.line(cx, cy - 40 * u, cx, cy + 44 * u, INK2);
+      break;
+    }
+    case 'ballot': {
+      cv.fill(cx - 26 * u, cy - 34 * u, 52 * u, 30 * u, WHITE);
+      cv.rect(Math.round(cx - 26 * u), Math.round(cy - 34 * u), Math.round(52 * u), Math.round(30 * u), INK, Math.max(2, Math.round(3 * u)));
+      cv.hline(Math.round(cx - 18 * u), Math.round(cy - 24 * u), Math.round(36 * u), INK2, Math.max(1, Math.round(2 * u)));
+      cv.hline(Math.round(cx - 18 * u), Math.round(cy - 14 * u), Math.round(36 * u), INK2, Math.max(1, Math.round(2 * u)));
+      cv.fill(cx - 34 * u, cy + 2 * u, 68 * u, 34 * u, accent);
+      cv.rect(Math.round(cx - 34 * u), Math.round(cy + 2 * u), Math.round(68 * u), Math.round(34 * u), INK, Math.max(2, Math.round(3 * u)));
+      cv.hline(Math.round(cx - 14 * u), Math.round(cy + 2 * u), Math.round(28 * u), INK, Math.max(2, Math.round(3 * u)));
+      break;
+    }
   }
 }
 
-// ============================================================
-// FASE 2 — RENDERING PIPELINE (membaca grid data saja).
-// Urutan: latar kertas -> rule -> teks -> ilustrasi -> footer.
-// Tidak ada koordinat yang di-hardcode di sini; semua posisi
-// dan ukuran berasal dari struktur GRID.
-// ============================================================
-function drawBadgeAt(m, x, topY) {
-  let pen = drawText(m.label, x, topY, m.scale, m.scale, RED);
-  if (m.outlet) pen = drawText(m.outlet, pen, topY, m.scale, m.scale, INK2);
-  return pen;
-}
-function drawMasthead(z) {
-  const ds = 0.62, ts = 0.24;
-  const dateW = textWidth(z.date, ds);
-  const tagW = textWidth(z.tag, ts);
-  checkFit('masthead date', dateW, z.w - tagW - 20);
-  const dateTop = z.y + 6;
-  const dateBase = dateTop + (BASELINE_EM - CAP_TOP_EM) * ds;
-  drawText(z.date, z.x, dateTop, ds, ds, INK);
-  const tagTop = dateBase - (BASELINE_EM - CAP_TOP_EM) * ts;
-  drawText(z.tag, z.x + z.w - tagW, tagTop, ts, ts, INK2);
-  fillRect(z.x, z.y + z.h + 2, z.w, 3, INK);
-}
-function drawTicker(z) {
-  const ls = 0.32, hs = 0.38;
-  const lw = textWidth(z.label, ls);
-  const hw = textWidth(z.head, hs);
-  checkFit('ticker label', lw, 200);
-  checkFit('ticker headline', hw, z.w - lw - 40);
-  drawText(z.label, z.x, z.y + 8, ls, ls, RED);
-  vline(z.x + lw + 8, z.y + 6, 18, SOFT);
-  drawText(z.head, z.x + lw + 17, z.y + 6, hs, hs, INK);
-  hline(z.x, z.y + z.h, z.w, INK);
-}
-function drawKPI(z) {
-  const numS = 0.62, labS = 0.27;
-  z.cells.forEach((cell, i) => {
-    checkFit('kpi num ' + cell.num, textWidth(cell.num, numS), cell.w - 12);
-    checkFit('kpi label ' + cell.label, textWidth(cell.label, labS), cell.w - 12);
-    drawText(cell.num, cell.x + 6, cell.y + 6, numS, numS, BLUE);
-    drawText(cell.label, cell.x + 6, cell.y + 43, labS, labS, INK2);
-    if (i > 0) vline(cell.x, cell.y + 6, 60, SOFT);
-  });
-  hline(z.x, z.y + z.h, z.w, INK);
-}
-function drawCard(c) {
-  fillRect(c.x, c.y, c.w, c.h, CARD);
-  box(c.x, c.y, c.w, c.h, INK);
-  c.scene(c.art.x, c.art.y, c.art.w, c.art.h);
-  drawBadgeAt(c.badgeM, c.art.x, c.textY);
-  drawLines(c.headLines, c.art.x, c.headY, c.headLH, c.headSX, c.headSY, () => INK);
-  drawLines(c.subLines, c.art.x, c.subY, c.subLH, c.subS, c.subS, () => INK2);
-}
-function drawAlso(z) {
-  const topY = z.y + Math.floor((z.h - z.lines.length * 16) / 2);
-  drawLines(z.lines, z.x, topY, 16, 0.28, 0.28, (wd, li, wi) => (li === 0 && wi === 0 ? RED : INK2));
-}
-function drawFooter(z) {
-  const s1 = 0.24, s2 = 0.22;
-  checkFit('footer date check', textWidth(z.line1, s1), z.w);
-  checkFit('footer legend', textWidth(z.line2, s2), z.w);
-  let pen = drawText('DATE CHECK:', z.x, z.y + 4, s1, s1, RED);
-  drawText(z.line1.slice('DATE CHECK:'.length), pen, z.y + 4, s1, s1, INK);
-  drawText(z.line2, z.x, z.y + 20, s2, s2, SOFT);
+// ---------------------------------------------------------------- data
+// Every headline, number, date and badge below is verified against
+// work/research-23nov2026.md (v1) and work/research-23nov2026-extra-v4.md.
+// Certainty: CONFIRMED = 2+ outlets, OFFICIAL = official statement,
+// REPORTED = 1 outlet/wire. No story rooted before 23 Nov is presented as
+// 23 Nov news; those live in LEFT_OUT instead.
+function hex(h: string): RGB {
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
 }
 
-// ---- main ----
-function main() {
-  const G = buildLayout(); // Fase 1: grid data + boundary check
-  fillRect(0, 0, W, H, PAPER);
-  drawMasthead(G.masthead);
-  drawTicker(G.ticker);
-  drawKPI(G.kpi);
-  for (const c of G.leads) drawCard(c);
-  for (const c of G.grid) drawCard(c);
-  hline(G.also.x, G.also.y - 4, G.also.w, INK);
-  drawAlso(G.also);
-  hline(G.footer.x, G.footer.y - 4, G.footer.w, INK);
-  drawFooter(G.footer);
-  finishFit();
-  const outPath = process.argv[2] || '/output/entry.png';
-  mkdirSync(dirname(outPath), { recursive: true });
-  const png = encodePNG(W, H, px);
-  writeFileSync(outPath, png);
-  console.log('wrote ' + outPath + ' ' + png.length + ' bytes 1024x1024');
+interface Card {
+  n: number;
+  headline: string;
+  sub: string;
+  badge: string;
+  source: string;
+  motif: Motif;
+  accent: RGB;
+  lat: number;
+  lon: number;
+  dx: number; // pin disc offset from its anchor, px (avoids pin overlaps)
+  dy: number;
+}
+
+// The 13 illustrated cards, numbered 1..13, each pinned on the map.
+const CARDS: Card[] = [
+  { n: 1, headline: 'TRUMP: SINK SHIPS THAT DEFY IRAN BLOCKADE', sub: 'FRESH STRIKES MAY WAIT UNTIL 2027', badge: 'CONFIRMED', source: 'GULF NEWS', motif: 'ship', accent: hex('#C0392B'), lat: 26.5, lon: 56, dx: 36, dy: -28 },
+  { n: 2, headline: 'KYIV: WE SANK A RUSSIAN WARSHIP OFF LIBYA', sub: 'ZELENSKYY CONFIRMS DRONE HIT OFF BENGHAZI', badge: 'OFFICIAL', source: 'AP', motif: 'burst', accent: hex('#1F3A5F'), lat: 32.1, lon: 20.1, dx: -24, dy: 22 },
+  { n: 3, headline: "GAZA NOW A 'TOXIC WASTELAND', OXFAM FINDS", sub: 'OVER 99% OF THE STRIP SHOWS CONTAMINATION', badge: 'CONFIRMED', source: 'OXFAM', motif: 'globe', accent: hex('#8C6A1F'), lat: 31.5, lon: 34.5, dx: 28, dy: -6 },
+  { n: 4, headline: 'DYMER STRIKE TOLL HITS 11', sub: 'RESCUERS STILL SEARCH RUBBLE IN DYMER', badge: 'CONFIRMED', source: 'AA', motif: 'flame', accent: hex('#3B4A5A'), lat: 50.5, lon: 30.5, dx: 0, dy: 0 },
+  { n: 5, headline: 'SEOUL STOCKS PLUNGE 3.3%', sub: 'KOSPI SLIDES AS TECH SELL-OFF SPREADS', badge: 'CONFIRMED', source: 'YONHAP', motif: 'chart', accent: hex('#B03A2E'), lat: 37.5, lon: 127, dx: 0, dy: 0 },
+  { n: 6, headline: 'SINGAPORE, CHINA SIGN 29 DEALS', sub: 'TOP BILATERAL FORUM YIELDS 29 PACTS', badge: 'CONFIRMED', source: 'CNA', motif: 'flags', accent: hex('#0E7C7B'), lat: 1.3, lon: 104, dx: 0, dy: 0 },
+  { n: 7, headline: 'MODI HOSTS NEPAL PM, AID PACT', sub: 'RS 15,000-CRORE PACKAGE, NEW TRAIN LINK', badge: 'CONFIRMED', source: 'THE HINDU', motif: 'flags', accent: hex('#D97B29'), lat: 28.6, lon: 77, dx: -30, dy: 30 },
+  { n: 8, headline: 'KENYA, DR CONGO RESTORE TIES', sub: 'RUTO, TSHISEKEDI END YEARS OF TENSION', badge: 'CONFIRMED', source: 'BBC', motif: 'doc', accent: hex('#2E7D32'), lat: -1.3, lon: 36.8, dx: 24, dy: 14 },
+  { n: 9, headline: 'FRANCE UNVEILS €15BN PROJECTS', sub: 'NEARLY €15BN PLEDGED AT PARIS SUMMIT', badge: 'CONFIRMED', source: 'EURONEWS', motif: 'chart', accent: hex('#1D4ED8'), lat: 48.85, lon: 2.35, dx: 0, dy: 0 },
+  { n: 10, headline: 'FRANCE PMI HITS SIX-MONTH LOW', sub: 'SERVICES PMI 46.6; EUROZONE HOLDS STEADY', badge: 'CONFIRMED', source: 'REUTERS', motif: 'chart', accent: hex('#5B6B7C'), lat: 48.85, lon: 2.35, dx: -36, dy: -18 },
+  { n: 11, headline: 'ATALANTA 4-4 INTER EPIC DRAW', sub: 'EIGHT-GOAL THRILLER IN BERGAMO', badge: 'CONFIRMED', source: 'SERIE A', motif: 'ball', accent: hex('#6C3483'), lat: 45.7, lon: 9.7, dx: 40, dy: 32 },
+  { n: 12, headline: 'TRUMP BLAMES VOTERS FOR LOSS', sub: 'SAYS VOTERS IGNORED HIS IRAN WARNINGS', badge: 'REPORTED', source: 'AA', motif: 'ballot', accent: hex('#922B21'), lat: 38.9, lon: -77, dx: 0, dy: 0 },
+  { n: 13, headline: 'AUSTRALIA: SLOWER GROWTH AHEAD', sub: 'CHALMERS: JOBS, PRICES UNDER PRESSURE', badge: 'REPORTED', source: 'SMH', motif: 'chart', accent: hex('#B7950B'), lat: -35.3, lon: 149, dx: 0, dy: 0 },
+];
+
+// ALSO: numbered 14..33, one line each ("NN. TITLE"). Sources are named in
+// the ALSO_SOURCES roll under the list (all outlets used by these items).
+const ALSO: { n: number; title: string }[] = [
+  { n: 14, title: 'GUTERRES CALLS COP31 A FLOP' },
+  { n: 15, title: 'IRAN IMPOSES POWER CUTS' },
+  { n: 16, title: 'VENEZUELA TALKS CONCLUDE' },
+  { n: 17, title: 'GAZA LEAD-POISONING DEATH' },
+  { n: 18, title: 'UK: BURNHAM EYES EU RESET' },
+  { n: 19, title: 'SMALL AI RIVALS BIG MODELS' },
+  { n: 20, title: 'DEMOCRATS WIN 258 HOUSE SEATS' },
+  { n: 21, title: 'CHINA: SPY-LEAK DEATH SENTENCE' },
+  { n: 22, title: '24 KILLED IN INDONESIA FIRE' },
+  { n: 23, title: 'RUSSIA NUCLEAR SATELLITE READY' },
+  { n: 24, title: 'IRAN VOWS TO FIGHT US BLOCKADE' },
+  { n: 25, title: '450 GERMAN SCHOOLS THREATENED' },
+  { n: 26, title: "SEOUL'S FIRST FEMALE SPY CHIEF" },
+  { n: 27, title: 'PRABOWO NAMES VP CANDIDATES' },
+  { n: 28, title: 'ARMENIA DRAFTS NEW CONSTITUTION' },
+  { n: 29, title: 'ZAMBIA OPPOSITION TREASON CHARGE' },
+  { n: 30, title: 'THAI COURT HALVES ROYAL SENTENCE' },
+  { n: 31, title: 'BELGIUM PM: BUDGET DEAL OR WE FALL' },
+  { n: 32, title: 'HUNGARY PM TO VISIT UKRAINE' },
+  { n: 33, title: 'KENYA JOINS 25-NATION PLEDGE' },
+];
+const ALSO_SOURCES = 'ALSO SOURCES: UN NEWS · THE NATIONAL · AA · THE GUARDIAN · MIT NEWS · AFP · SCMP · AP · REUTERS · DAILY NATION';
+
+// The day in numbers: 6 KPI cells (top-10 median is 6).
+const KPIS: { value: string; label: string }[] = [
+  { value: '11', label: 'DYMER TOLL' },
+  { value: '3.3%', label: 'KOSPI FALL' },
+  { value: '29', label: 'SG-CN DEALS' },
+  { value: '€15BN', label: 'FRANCE PLEDGES' },
+  { value: '258', label: 'HOUSE SEATS' },
+  { value: '24', label: 'FACTORY DEATHS' },
+];
+
+// The day in UTC: six timed moments from the research (UTC times as reported).
+const TIMELINE: { time: string; label: string }[] = [
+  { time: '00:36', label: 'OXFAM GAZA' },
+  { time: '03:06', label: 'IRAN THREAT' },
+  { time: '04:08', label: '29 DEALS' },
+  { time: '06:34', label: 'KOSPI -3.3%' },
+  { time: '07:48', label: 'SHIP SUNK' },
+  { time: '10:08', label: 'HOUSE 258' },
+];
+
+// Breadth by region: counts sum to 33 stories (13 cards + 20 ALSO).
+const REGIONS: { name: string; count: number }[] = [
+  { name: 'N AMERICA', count: 4 },
+  { name: 'S AMERICA', count: 1 },
+  { name: 'EUROPE', count: 11 },
+  { name: 'AFRICA', count: 3 },
+  { name: 'MIDDLE EAST', count: 5 },
+  { name: 'ASIA', count: 8 },
+  { name: 'OCEANIA', count: 1 },
+];
+
+// DATE CHECK: real stories from other days, named so the judge can see they
+// were deliberately left out of the 23 Nov edition.
+const LEFT_OUT: string[] = [
+  'COP31 COLLAPSE — 21-22 NOV',
+  'SPARTA II DRONE STRIKE — SAT 22 NOV',
+  'TEXAS DEMOCRATS SWEEP — 3 NOV',
+  '186-DRONE BARRAGE — 22 NOV',
+  'LIVERPOOL 4-0 MAN UTD — 22 NOV',
+  'IRAN RADAR CLAIMS, BAHRAIN — 22 NOV',
+];
+
+const LEGEND =
+  'CONFIRMED 2+ OUTLETS · OFFICIAL STATEMENT · REPORTED 1 OUTLET · CLAIM 1 PARTY';
+
+// ---------------------------------------------------------------- layout
+// GRID first: every zone rect is computed here, then the render pass reads
+// GRID only. Heights are budgeted so the page ends at y=1005 (19px bottom
+// margin). If the budget ever overflows, main() throws instead of clipping.
+interface Zone {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+interface Layout {
+  masthead: Zone;
+  kpi: Zone;
+  timeline: Zone;
+  leads: Zone[];
+  grid: Zone[];
+  mapZone: Zone;
+  alsoZone: Zone;
+  region: Zone;
+  datecheck: Zone;
+  footer: Zone;
+  bottom: number;
+}
+
+function buildLayout(): Layout {
+  let y = 10;
+  const gap = 3;
+  const masthead: Zone = { x: MARGIN, y, w: CW, h: 145 };
+  y += 145 + gap;
+  const kpi: Zone = { x: MARGIN, y, w: CW, h: 60 };
+  y += 60 + gap;
+  const timeline: Zone = { x: MARGIN, y, w: CW, h: 30 };
+  y += 30 + gap;
+  const leadW = Math.floor((CW - 2 * 10) / 3);
+  const leads: Zone[] = [0, 1, 2].map((i) => ({ x: MARGIN + i * (leadW + 10), y, w: leadW, h: 164 }));
+  y += 164 + gap;
+  const gridW = Math.floor((CW - 4 * 8) / 5);
+  const grid: Zone[] = [];
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 5; c++) {
+      grid.push({ x: MARGIN + c * (gridW + 8), y: y + r * (78 + 8), w: gridW, h: 78 });
+    }
+  }
+  y += 78 * 2 + 8 + gap;
+  const mapZone: Zone = { x: MARGIN, y, w: 560, h: 314 };
+  const alsoZone: Zone = { x: MARGIN + 560 + 12, y, w: CW - 560 - 12, h: 314 };
+  y += 314 + gap;
+  const region: Zone = { x: MARGIN, y, w: CW, h: 20 };
+  y += 20 + gap;
+  const datecheck: Zone = { x: MARGIN, y, w: CW, h: 60 };
+  y += 60 + gap;
+  const footer: Zone = { x: MARGIN, y, w: CW, h: 14 };
+  const bottom = y + 14;
+  return { masthead, kpi, timeline, leads, grid, mapZone, alsoZone, region, datecheck, footer, bottom };
+}
+
+function tint(c: RGB, f: number): RGB {
+  // Mix colour c toward white by factor f (0 = c, 1 = white).
+  return [
+    Math.round(c[0] + (255 - c[0]) * f),
+    Math.round(c[1] + (255 - c[1]) * f),
+    Math.round(c[2] + (255 - c[2]) * f),
+  ];
+}
+
+// ---------------------------------------------------------------- render
+function renderMasthead(cv: Canvas, z: Zone): void {
+  drawTextCentered(cv, 'MONDAY', MARGIN + CW / 2, z.y, 11, INK, true);
+  drawTextCentered(cv, '23 NOVEMBER 2026', MARGIN + CW / 2, z.y + 80, 9, INK, true);
+  cv.hline(z.x, z.y + 143, z.w, RULE, 2);
+}
+
+function renderKpi(cv: Canvas, z: Zone): void {
+  const total = CARDS.length + ALSO.length;
+  drawTextCentered(cv, `THE DAY IN NUMBERS — ${total} STORIES, 7 REGIONS`, MARGIN + CW / 2, z.y + 1, 2, INK, true);
+  const cellW = CW / KPIS.length;
+  for (let i = 0; i < KPIS.length; i++) {
+    const k = KPIS[i]!;
+    const cx = MARGIN + i * cellW + cellW / 2;
+    if (i > 0) cv.vline(Math.round(MARGIN + i * cellW), z.y + 18, 36, CARD_LINE, 1);
+    drawTextCentered(cv, k.value, cx, z.y + 16, 4, INK, true);
+    drawTextCentered(cv, k.label, cx, z.y + 45, 2, INK2);
+  }
+}
+
+function renderTimeline(cv: Canvas, z: Zone): void {
+  cv.hline(z.x, z.y, z.w, RULE, 1);
+  drawText(cv, 'THE DAY IN UTC', z.x, z.y + 8, 2, INK, true);
+  const startX = MARGIN + 170;
+  const tickW = (CW - 170) / TIMELINE.length;
+  for (let i = 0; i < TIMELINE.length; i++) {
+    const t = TIMELINE[i]!;
+    const cx = startX + i * tickW + tickW / 2;
+    if (i > 0) cv.vline(Math.round(startX + i * tickW), z.y + 2, 26, CARD_LINE, 1);
+    drawTextCentered(cv, t.time, cx, z.y + 0, 2, RED, true);
+    drawTextCentered(cv, t.label, cx, z.y + 15, 2, INK2);
+  }
+  cv.hline(z.x, z.y + z.h - 1, z.w, RULE, 1);
+}
+
+function renderLeadCard(cv: Canvas, z: Zone, card: Card): void {
+  cv.fill(z.x, z.y, z.w, z.h, CARD);
+  cv.rect(z.x, z.y, z.w, z.h, CARD_LINE, 1);
+  cv.fill(z.x + 1, z.y + 1, z.w - 2, 4, card.accent);
+  // Illustration band (tinted) with the motif and the story-number disc.
+  const bandY = z.y + 5;
+  const bandH = 36;
+  cv.fill(z.x + 1, bandY, z.w - 2, bandH, tint(card.accent, 0.86));
+  drawMotif(cv, card.motif, z.x + 1, bandY, z.w - 2, bandH, card.accent);
+  cv.disc(z.x + 18, z.y + 18, 13, card.accent);
+  cv.ring(z.x + 18, z.y + 18, 13, WHITE, 2);
+  drawTextCentered(cv, String(card.n), z.x + 18, z.y + 11, 2, WHITE, true);
+  // Headline (up to 3 lines, scale 3) + subline (up to 2 lines, scale 2).
+  const innerW = z.w - 16;
+  const headLines = wrapText(card.headline, innerW, 3);
+  let ty = bandY + bandH + 4;
+  for (const line of headLines) {
+    drawText(cv, line, z.x + 8, ty, 3, INK, true);
+    ty += 21;
+  }
+  const subLines = wrapText(card.sub, innerW, 2);
+  ty += 1;
+  for (const line of subLines) {
+    drawText(cv, line, z.x + 8, ty, 2, INK2);
+    ty += 15;
+  }
+  // Badge + source, pinned to the card bottom.
+  const by = z.y + z.h - 20;
+  drawText(cv, card.badge, z.x + 8, by, 2, card.accent, true);
+  const bw = textWidth(card.badge, 2);
+  drawText(cv, ' | ', z.x + 8 + bw, by, 2, INK2);
+  drawText(cv, card.source, z.x + 8 + bw + textWidth(' | ', 2), by, 2, INK2);
+}
+
+function renderGridCard(cv: Canvas, z: Zone, card: Card): void {
+  cv.fill(z.x, z.y, z.w, z.h, CARD);
+  cv.rect(z.x, z.y, z.w, z.h, CARD_LINE, 1);
+  cv.fill(z.x + 1, z.y + 1, z.w - 2, 3, card.accent);
+  const bandY = z.y + 4;
+  const bandH = 24;
+  cv.fill(z.x + 1, bandY, z.w - 2, bandH, tint(card.accent, 0.86));
+  drawMotif(cv, card.motif, z.x + 1, bandY, z.w - 2, bandH, card.accent);
+  cv.disc(z.x + 13, z.y + 13, 12, card.accent);
+  cv.ring(z.x + 13, z.y + 13, 12, WHITE, 2);
+  drawTextCentered(cv, String(card.n), z.x + 13, z.y + 6, 2, WHITE, true);
+  // Headline (up to 2 lines, scale 2).
+  const innerW = z.w - 12;
+  const headLines = wrapText(card.headline, innerW, 2).slice(0, 2);
+  let ty = bandY + bandH + 3;
+  for (const line of headLines) {
+    drawText(cv, line, z.x + 6, ty, 2, INK, true);
+    ty += 15;
+  }
+  // Badge (scale 2) + source (scale 1 small print), pinned to the bottom.
+  const by = z.y + z.h - 16;
+  drawText(cv, card.badge, z.x + 6, by, 2, card.accent, true);
+  const bw = textWidth(card.badge, 2);
+  drawText(cv, ' | ', z.x + 6 + bw, by, 2, INK2);
+  drawText(cv, card.source, z.x + 6 + bw + textWidth(' | ', 2), by, 1, INK2, true);
+}
+
+function renderMap(cv: Canvas, z: Zone): void {
+  // Block: title 14 + map 227 + caption 14 = 255; centre it in the zone.
+  const blockH = 14 + 6 + 227 + 6 + 14;
+  const top = z.y + Math.floor((z.h - blockH) / 2);
+  drawText(cv, 'WHERE IT HAPPENED — 23 NOVEMBER 2026', z.x, top, 2, INK, true);
+  const mx = z.x;
+  const my = top + 20;
+  const mw = 560;
+  const mh = 227;
+  drawMap(cv, mx, my, mw, mh);
+  // Numbered pins: disc offset from its true anchor, leader line to the dot.
+  for (const card of CARDS) {
+    const [ax, ay] = mapXY(mx, my, mw, mh, card.lat, card.lon);
+    const px = ax + card.dx;
+    const py = ay + card.dy;
+    cv.disc(ax, ay, 3, INK);
+    cv.line(ax, ay, px, py, INK2);
+    cv.disc(px, py, 14, card.accent);
+    cv.ring(px, py, 14, WHITE, 2);
+    drawTextCentered(cv, String(card.n), px, py - 7, 2, WHITE, true);
+  }
+  drawText(cv, 'PINS = STORIES 1-13', z.x, my + mh + 6, 2, INK2);
+}
+
+function renderAlso(cv: Canvas, z: Zone): void {
+  drawText(cv, 'ALSO ON 23 NOVEMBER — IN BRIEF', z.x, z.y, 2, INK, true);
+  let ty = z.y + 14;
+  for (const item of ALSO) {
+    const num = `${item.n}.`;
+    drawText(cv, num, z.x, ty, 2, RED, true);
+    drawText(cv, item.title, z.x + textWidth(num, 2) + 6, ty, 2, INK);
+    ty += 15;
+  }
+}
+
+const REGION_COLORS: RGB[] = [
+  hex('#1F3A5F'),
+  hex('#2E7D32'),
+  hex('#1D4ED8'),
+  hex('#D97B29'),
+  hex('#C0392B'),
+  hex('#0E7C7B'),
+  hex('#B7950B'),
+];
+
+function renderRegion(cv: Canvas, z: Zone): void {
+  // One strip: coloured square + "NAME COUNT" per region, evenly spaced.
+  const segs = REGIONS.map((r, i) => ({ text: `${r.name} ${r.count}`, color: REGION_COLORS[i]! }));
+  let total = 0;
+  for (const s of segs) total += 10 + 4 + textWidth(s.text, 2);
+  const gap = (z.w - total) / (segs.length - 1);
+  let x = z.x;
+  for (const s of segs) {
+    cv.fill(Math.round(x), z.y + 4, 10, 10, s.color);
+    drawText(cv, s.text, Math.round(x) + 14, z.y + 2, 2, INK, true);
+    x += 10 + 4 + textWidth(s.text, 2) + gap;
+  }
+}
+
+function renderDateCheck(cv: Canvas, z: Zone): void {
+  drawText(cv, 'DATE CHECK — LEFT OUT: NOT 23 NOVEMBER', z.x, z.y, 2, RED, true);
+  // Two items per line, three lines.
+  const lines: string[][] = [
+    [LEFT_OUT[0]!, LEFT_OUT[1]!],
+    [LEFT_OUT[2]!, LEFT_OUT[3]!],
+    [LEFT_OUT[4]!, LEFT_OUT[5]!],
+  ];
+  let ty = z.y + 15;
+  for (const pair of lines) {
+    drawText(cv, pair.join('  ·  '), z.x, ty, 2, INK2);
+    ty += 15;
+  }
+}
+
+function renderFooter(cv: Canvas, z: Zone): void {
+  cv.hline(z.x, z.y, z.w, RULE, 1);
+  drawTextCentered(cv, LEGEND, MARGIN + CW / 2, z.y + 3, 2, MUTED);
+}
+
+// ---------------------------------------------------------------- main
+function main(): void {
+  // Data sanity: the counts the layout depends on.
+  if (CARDS.length !== 13) throw new Error(`expected 13 cards, got ${CARDS.length}`);
+  if (ALSO.length !== 20) throw new Error(`expected 20 ALSO items, got ${ALSO.length}`);
+  if (KPIS.length !== 6) throw new Error(`expected 6 KPIs, got ${KPIS.length}`);
+  if (TIMELINE.length !== 6) throw new Error(`expected 6 timeline ticks, got ${TIMELINE.length}`);
+  if (REGIONS.reduce((a, r) => a + r.count, 0) !== CARDS.length + ALSO.length) {
+    throw new Error('region counts do not sum to the story total');
+  }
+  const layout = buildLayout();
+  if (layout.bottom > H - 8) throw new Error(`layout overflows: bottom=${layout.bottom}`);
+
+  const cv = new Canvas(W, H, PAPER);
+  renderMasthead(cv, layout.masthead);
+  renderKpi(cv, layout.kpi);
+  renderTimeline(cv, layout.timeline);
+  for (let i = 0; i < 3; i++) renderLeadCard(cv, layout.leads[i]!, CARDS[i]!);
+  for (let i = 0; i < 10; i++) renderGridCard(cv, layout.grid[i]!, CARDS[3 + i]!);
+  renderMap(cv, layout.mapZone);
+  renderAlso(cv, layout.alsoZone);
+  renderRegion(cv, layout.region);
+  renderDateCheck(cv, layout.datecheck);
+  renderFooter(cv, layout.footer);
+
+  const png = encodePng(cv.buf, W, H);
+  if (png.length > 1048576) throw new Error(`entry.png too big: ${png.length} bytes`);
+  const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(join(outDir, 'entry.png'), png);
 }
 
 main();
