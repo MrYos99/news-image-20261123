@@ -1,17 +1,24 @@
-# news-image-20261123 v8 — "The World in One Day", typography fix (John's rule).
+# news-image-20261123 v11 — "The World in One Day", footer + DATE CHECK +
+# colour (John's orders 22:09–22:16 WIB, approved to build 22:23 WIB).
 #
-# v8 keeps the v7 top-1 pattern (render outside the harness with PIL and a
+# v11 keeps the v7 top-1 pattern (render outside the harness with PIL and a
 # REAL serif font; main.ts only copies entry.png) and the v7 big art (lead
 # art 120px / card 235px, grid art 55px / card 116px, banner + place labels
-# inside the art). What changes is TYPOGRAPHY, per John's 21:55 WIB order:
-# too many capitals. News headlines are Title Case, never all-caps; the
-# subline under a headline is ALL CAPS; only the badge word (CONFIRMED /
-# OFFICIAL / REPORTED) stays all-caps and the source after "|" is Title Case
-# (acronyms AP/BBC/CNA/AA/SMH stay caps); each badge type gets its own
-# consistent colour (CONFIRMED green, OFFICIAL blue, REPORTED amber) instead
-# of the card's accent colour. Also (21:56 WIB) the MONDAY masthead gets
-# ~13px of breathing room below the kicker line above it. The stored story
-# data is NOT changed — casing is applied at render time only. Content is the
+# inside the art), plus the v8 typography (headlines Title Case, sublines ALL
+# CAPS, badges coloured per type, sources Title Case) and the v9/v10 DATE
+# CHECK (title just "DATE CHECK", 6 short items). What changes in v11:
+# (1) footer becomes 3 segments on 2 lines — left "Every story happened...",
+# centre legend, right "Sources: ..." (one line is impossible at readable
+# size: the three segments measure 1,675px at 15px vs 948px width);
+# (2) DATE CHECK items become a tidy 2-column x 3-row grid (v10's 3 run-on
+# rows overflowed ~3px past the box); (3) legend descriptors lowercase
+# ("CONFIRMED 2+ outlets ..."), only badge words caps; (4) footer sits 5px
+# below the DATE CHECK red border (v10's legend was ~3px below it);
+# (5) legend badge words coloured (CONFIRMED green, OFFICIAL blue, REPORTED
+# amber, same as the card badges); (6) top kicker RED; (7) scenes get
+# colourful backgrounds (Seoul chart proper, kangaroo in Australia, green
+# pitch + goal + ball for the football draw). The stored story data is NOT
+# changed — casing/colour is applied at render time only. Content is the
 # v4/v5/v6/v7 23 Nov set, unchanged: 13 illustrated cards, 20 ALSO, 6 KPIs,
 # UTC timeline, 7-region bar, world map with 13 numbered pins, DATE CHECK.
 # No new research, no changed numbers.
@@ -333,7 +340,8 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
     if scene == "blockade":
         # Strait of Hormuz: sea, land top and bottom, a tanker left of a
         # dashed red blockade line and a warship right of it.
-        rect(d, bx, by, bw, bh, fill=SKY)
+        # v11: blue sea background (was pale SKY).
+        rect(d, bx, by, bw, bh, fill=hx("#8FB8D8"))
         poly(d, [[X(0), Y(0)], [X(0.42), Y(0)], [X(0.3), Y(0.32)], [X(0), Y(0.28)]], LAND)
         poly(d, [[X(0.58), Y(0)], [X(1), Y(0)], [X(1), Y(0.26)], [X(0.7), Y(0.32)]], LAND)
         poly(d, [[X(0), Y(0.74)], [X(0.28), Y(0.68)], [X(0.4), Y(1)], [X(0), Y(1)]], LAND)
@@ -360,7 +368,9 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
         hline(d, round(X(0.08)), round(Y(0.78)), round(bw * 0.84), WHITE, 1)
     elif scene == "sinking":
         # A warship going down bow-first off the Libyan coast, burst above.
-        rect(d, bx, by, bw, bh, fill=SKY)
+        # v11: two-tone sky + sea (was pale SKY).
+        rect(d, bx, by, bw, bh * 0.3, fill=hx("#B9D4E8"))
+        rect(d, bx, by + bh * 0.3, bw, bh * 0.7, fill=hx("#6FA8D0"))
         rect(d, bx, by + bh * 0.78, bw, bh * 0.22, fill=LAND)
         bcx, bcy = X(0.42), Y(0.26)
         bpts = []
@@ -384,8 +394,9 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
     elif scene == "gaza":
         # The Gaza Strip: sea left, a narrow strip, contamination dots,
         # and a hazard triangle.
-        rect(d, bx, by, bw, bh, fill=PAPER2)
-        rect(d, bx, by, bw * 0.3, bh, fill=SEA)
+        # v11: warm sand background + blue sea (was PAPER2 + pale SEA).
+        rect(d, bx, by, bw, bh, fill=hx("#E8D9B8"))
+        rect(d, bx, by, bw * 0.3, bh, fill=hx("#8FB8D8"))
         poly(d, [[X(0.3), Y(0.06)], [X(0.44), Y(0.1)], [X(0.48), Y(0.5)], [X(0.42), Y(0.94)], [X(0.3), Y(0.94)], [X(0.32), Y(0.5)]], LAND)
         for fx, fy in [(0.36, 0.2), (0.4, 0.32), (0.36, 0.44), (0.42, 0.56), (0.38, 0.68), (0.4, 0.82), (0.34, 0.58), (0.44, 0.22), (0.33, 0.3), (0.43, 0.72), (0.37, 0.9)]:
             disc(d, round(X(fx)), round(Y(fy)), max(1, bh * 0.03), RED)
@@ -397,7 +408,9 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
         text_c(d, tx, ty - bh * 0.12, "!", bang, INK)
     elif scene == "dymer":
         # A shelled apartment block: broken top corner, smoke, small flame.
-        rect(d, bx, by, bw, bh, fill=SKY)
+        # v11: blue sky + land/rubble band at the bottom (was pale SKY).
+        rect(d, bx, by, bw, bh, fill=hx("#A8C8E0"))
+        rect(d, bx, by + bh * 0.85, bw, bh * 0.15, fill=hx("#C9A86A"))
         bx0 = X(0.3)
         bw0 = bw * 0.4
         rect(d, bx0, Y(0.18), bw0, bh * 0.82, fill=hx("#8A8A8A"))
@@ -411,18 +424,25 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
         poly(d, [[X(0.78), Y(0.42)], [X(0.84), Y(0.3)], [X(0.88), Y(0.42)]], RED)
     elif scene == "kospi":
         # A market in free fall: descending bars, a steep red line, arrow.
-        rect(d, bx, by, bw, bh, fill=PAPER2)
+        # v11: proper chart — blue-steel panel, gridlines, 6 descending
+        # bars, downtrend line with arrowhead (was 4 plain bars on PAPER2).
+        rect(d, bx, by, bw, bh, fill=hx("#DCE6EC"))
+        for gy in [0.3, 0.5, 0.7]:
+            hline(d, round(X(0.08)), round(Y(gy)), round(bw * 0.88), hx("#B9C4CC"), 1)
         vline(d, round(X(0.08)), round(Y(0.1)), round(bh * 0.8), INK, 2)
         hline(d, round(X(0.08)), round(Y(0.9)), round(bw * 0.88), INK, 2)
-        for i, bhf in enumerate([0.62, 0.48, 0.34, 0.18]):
-            bx0 = X(0.16 + i * 0.2)
-            rect(d, bx0, Y(0.9 - bhf), bw * 0.11, bh * bhf, fill=hx("#C0392B"))
-        polyline(d, [[X(0.14), Y(0.16)], [X(0.36), Y(0.34)], [X(0.58), Y(0.56)], [X(0.86), Y(0.84)]], RED, max(2, round(bh * 0.05)))
+        tops = []
+        for i, bhf in enumerate([0.68, 0.58, 0.48, 0.38, 0.26, 0.14]):
+            bx0 = X(0.14 + i * 0.13)
+            rect(d, bx0, Y(0.9 - bhf), bw * 0.09, bh * bhf, fill=hx("#C0392B"))
+            tops.append((bx0 + bw * 0.045, Y(0.9 - bhf)))
+        polyline(d, tops, RED, max(2, round(bh * 0.05)))
         tri(d, X(0.86), Y(0.84), X(0.78), Y(0.78), X(0.9), Y(0.74), RED)
     elif scene == "deals":
         # Singapore (red/white, crescent + stars) and China (red, 5 stars),
         # with a signed document below.
-        rect(d, bx, by, bw, bh, fill=PAPER2)
+        # v11: pale gold background (was PAPER2).
+        rect(d, bx, by, bw, bh, fill=hx("#F2E3C0"))
         fw, fh = bw * 0.4, bh * 0.78
         fy = by + bh * 0.08
         sx = bx + bw * 0.05
@@ -444,7 +464,8 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
         rect(d, round(dx0), round(by + bh * 0.9), round(bw * 0.4), round(bh * 0.08), outline=INK2, width=1)
     elif scene == "aid":
         # India (saffron/white/green + chakra) and Nepal (double pennant).
-        rect(d, bx, by, bw, bh, fill=PAPER2)
+        # v11: pale saffron background (was PAPER2).
+        rect(d, bx, by, bw, bh, fill=hx("#FBEED3"))
         fw, fh = bw * 0.42, bh * 0.8
         fy = by + bh * 0.1
         ix = bx + bw * 0.04
@@ -462,7 +483,8 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
     elif scene == "ties":
         # Kenya (black/red/green + shield) and DR Congo (blue + red diagonal
         # + star), with two linked rings between them: ties restored.
-        rect(d, bx, by, bw, bh, fill=PAPER2)
+        # v11: pale gold background (was PAPER2).
+        rect(d, bx, by, bw, bh, fill=hx("#F2E3C0"))
         fw, fh = bw * 0.36, bh * 0.78
         fy = by + bh * 0.11
         kx = bx + bw * 0.04
@@ -487,7 +509,9 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
         ring(d, round(rx + rr * 0.7), round(ry), round(rr), hx("#007FFF"), 2)
     elif scene == "france15":
         # Eiffel Tower, a big euro sign, and rising bars.
-        rect(d, bx, by, bw, bh, fill=PAPER2)
+        # v11: sky + street (was PAPER2).
+        rect(d, bx, by, bw, bh * 0.7, fill=hx("#B9D4E8"))
+        rect(d, bx, by + bh * 0.7, bw, bh * 0.3, fill=hx("#E8D9B8"))
         tx0 = X(0.05)
         tw = bw * 0.26
         poly(d, [[tx0, Y(0.95)], [tx0 + tw * 0.24, Y(0.55)], [tx0 + tw * 0.36, Y(0.28)], [tx0 + tw * 0.5, Y(0.05)], [tx0 + tw * 0.64, Y(0.28)], [tx0 + tw * 0.76, Y(0.55)], [tx0 + tw, Y(0.95)]], INK)
@@ -502,7 +526,8 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
         tri(d, X(0.92), Y(0.3), X(0.86), Y(0.3), X(0.92), Y(0.38), hx("#2E7D32"))
     elif scene == "pmi":
         # A gauge dial: red low zone left, green high zone right, needle low.
-        rect(d, bx, by, bw, bh, fill=PAPER2)
+        # v11: blue-steel panel background (was PAPER2).
+        rect(d, bx, by, bw, bh, fill=hx("#DCE6EC"))
         gcx, gcy = X(0.42), Y(0.86)
         gr = bh * 0.62
         d.arc([gcx - gr, gcy - gr, gcx + gr, gcy + gr], 180, 360, fill=INK2, width=max(2, round(bh * 0.05)))
@@ -521,7 +546,13 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
         tri(d, X(0.8), Y(0.72), X(0.74), Y(0.6), X(0.86), Y(0.6), RED)
     elif scene == "draw44":
         # Goal frame + net, soccer ball in front.
-        rect(d, bx, by, bw, bh, fill=SKY)
+        # v11: green pitch with mowing stripes below a pale sky (was SKY
+        # all over, no grass). Ball rests on the grass at Y(0.60).
+        rect(d, bx, by, bw, bh * 0.45, fill=SKY)
+        for s in range(8):
+            rect(d, bx, by + bh * (0.45 + s * 0.55 / 8), bw, bh * 0.55 / 8,
+                 fill=hx("#2E7D32") if s % 2 == 0 else hx("#388E3C"))
+        hline(d, round(bx), round(Y(0.45)), round(bw), WHITE, 2)
         gx0, gx1, gy0, gy1 = X(0.14), X(0.86), Y(0.12), Y(0.86)
         for i in range(1, 6):
             vline(d, round(gx0 + ((gx1 - gx0) * i) / 6), round(gy0), round(gy1 - gy0), hx("#B9C4CC"), 1)
@@ -530,7 +561,7 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
         vline(d, round(gx0), round(gy0), round(gy1 - gy0), WHITE, 3)
         vline(d, round(gx1), round(gy0), round(gy1 - gy0), WHITE, 3)
         hline(d, round(gx0), round(gy0), round(gx1 - gx0), WHITE, 3)
-        bcx, bcy = X(0.5), Y(0.58)
+        bcx, bcy = X(0.5), Y(0.60)
         br = max(4, bh * 0.24)
         disc(d, round(bcx), round(bcy), round(br), WHITE)
         ring(d, round(bcx), round(bcy), round(br), INK, 2)
@@ -545,7 +576,9 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
                     (bcx + math.cos(ang) * br * 0.95, bcy + math.sin(ang) * br * 0.95)], fill=INK2, width=1)
     elif scene == "voters":
         # A ballot box with a marked slip going in.
-        rect(d, bx, by, bw, bh, fill=PAPER2)
+        # v11: blue-steel wall + warm floor (was PAPER2).
+        rect(d, bx, by, bw, bh * 0.65, fill=hx("#DCE6EC"))
+        rect(d, bx, by + bh * 0.65, bw, bh * 0.35, fill=hx("#E8D9B8"))
         bx0 = X(0.3)
         bw0 = bw * 0.4
         rect(d, bx0, Y(0.4), bw0, bh * 0.55, fill=accent)
@@ -558,9 +591,31 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
         d.line([(X(0.53), Y(0.38)), (X(0.47), Y(0.5))], fill=RED, width=2)
     elif scene == "aus":
         # Australia's outline + a growth curve that flattens out.
-        rect(d, bx, by, bw, bh, fill=PAPER2)
+        # v11: pale sky + ochre land, and a kangaroo standing on the land
+        # (John 22:16 WIB). The kangaroo is drawn AFTER the map so it sits
+        # on top: tilted body, head + two upright ears, long tail touching
+        # the ground behind, large hind legs + small forelegs.
+        rect(d, bx, by, bw, bh * 0.55, fill=SKY)
+        rect(d, bx, by + bh * 0.55, bw, bh * 0.45, fill=hx("#D98E32"))
         poly(d, [[X(0.05), Y(0.38)], [X(0.1), Y(0.2)], [X(0.22), Y(0.12)], [X(0.38), Y(0.08)], [X(0.52), Y(0.04)], [X(0.58), Y(0.16)], [X(0.6), Y(0.32)], [X(0.56), Y(0.5)], [X(0.48), Y(0.62)], [X(0.36), Y(0.66)], [X(0.2), Y(0.62)], [X(0.08), Y(0.52)]], LAND)
         tri(d, X(0.52), Y(0.76), X(0.58), Y(0.76), X(0.55), Y(0.86), LAND)
+        # Kangaroo silhouette (dark brown), far left, X(0.02–0.19),
+        # Y(0.36–0.95) — fully clear of the value chip (bottom-right, starts
+        # ~X 0.22) and the number disc (top-left, X < 0.14, Y < 0.38).
+        # Bold upright profile: body, two tall ears, long tail sweeping
+        # back to the ground, big hind foot.
+        roo = hx("#5D3A1A")
+        poly(d, [[X(0.13), Y(0.50)], [X(0.17), Y(0.51)], [X(0.18), Y(0.56)],
+               [X(0.17), Y(0.63)], [X(0.15), Y(0.72)], [X(0.13), Y(0.82)],
+               [X(0.11), Y(0.88)], [X(0.08), Y(0.86)], [X(0.07), Y(0.76)],
+               [X(0.08), Y(0.64)], [X(0.10), Y(0.54)]], roo)
+        tri(d, X(0.12), Y(0.50), X(0.11), Y(0.36), X(0.14), Y(0.50), roo)
+        tri(d, X(0.14), Y(0.50), X(0.15), Y(0.38), X(0.17), Y(0.50), roo)
+        poly(d, [[X(0.08), Y(0.80)], [X(0.04), Y(0.88)], [X(0.02), Y(0.93)],
+               [X(0.04), Y(0.95)], [X(0.07), Y(0.92)], [X(0.10), Y(0.85)]], roo)
+        poly(d, [[X(0.11), Y(0.84)], [X(0.15), Y(0.88)], [X(0.19), Y(0.93)],
+               [X(0.19), Y(0.95)], [X(0.13), Y(0.95)], [X(0.10), Y(0.90)]], roo)
+        d.line([(X(0.16), Y(0.70)), (X(0.14), Y(0.87))], fill=roo, width=max(2, round(bh * 0.04)))
         vline(d, round(X(0.64)), round(Y(0.16)), round(bh * 0.7), INK, 2)
         hline(d, round(X(0.64)), round(Y(0.86)), round(bw * 0.3), INK, 2)
         polyline(d, [[X(0.66), Y(0.78)], [X(0.74), Y(0.56)], [X(0.82), Y(0.46)], [X(0.9), Y(0.45)], [X(0.94), Y(0.48)]], RED, max(2, round(bh * 0.04)))
@@ -659,7 +714,22 @@ LEFT_OUT = [
     "IRAN RADAR CLAIMS, BAHRAIN \u2014 22 NOV",
 ]
 
-LEGEND = "CONFIRMED 2+ OUTLETS \u00b7 OFFICIAL STATEMENT \u00b7 REPORTED 1 OUTLET \u00b7 CLAIM 1 PARTY"
+LEGEND = "CONFIRMED 2+ outlets \u00b7 OFFICIAL statement \u00b7 REPORTED 1 outlet \u00b7 CLAIM 1 party"
+
+# v11 footer (John 22:09 WIB): three segments on two lines. Line 1: the
+# "Every story happened..." sentence on the left + the legend centred in the
+# space that remains. Line 2: the sources, centred. Sources are the 12 card
+# sources deduplicated in order of first appearance (from CARDS) — NOT the
+# ALSO sources.
+FOOTER_LEFT = "Every story happened or was first reported on Mon 23 Nov 2026; claims attributed."
+FOOTER_SOURCES = "Sources: Gulf News, AP, Oxfam, AA, Yonhap, CNA, The Hindu, BBC, Euronews, Reuters, Serie A, SMH"
+# Legend as parts: (text, is_badge_word, badge_key). Badge words are bold +
+# coloured per type (same BADGE_COLORS as the cards); descriptors are regular
+# + MUTED; CLAIM is bold + MUTED (John named only the three for colour).
+LEGEND_PARTS = [("CONFIRMED ", True, "CONFIRMED"), ("2+ outlets \u00b7 ", False, None),
+                ("OFFICIAL ", True, "OFFICIAL"), ("statement \u00b7 ", False, None),
+                ("REPORTED ", True, "REPORTED"), ("1 outlet \u00b7 ", False, None),
+                ("CLAIM ", True, None), ("1 party", False, None)]
 
 REGION_COLORS = [hx("#1F3A5F"), hx("#2E7D32"), hx("#1D4ED8"), hx("#D97B29"), hx("#C0392B"), hx("#0E7C7B"), hx("#B7950B")]
 
@@ -675,10 +745,20 @@ REGION_COLORS = [hx("#1F3A5F"), hx("#2E7D32"), hx("#1D4ED8"), hx("#D97B29"), hx(
 # count it stated is already in the top kicker, so the line was redundant.
 # The freed 12px move from the KPI zone (46 → 34) to the masthead zone
 # (157 → 169) for more breathing room; the page still ends at y=1014.
+# v11 budget: the footer needs 2 lines (25 tall) and the DATE CHECK grid
+# needs 50, so the page pays from the masthead (169 → 155; its content ends
+# at y+153, so the bottom rule sits 2px above the zone end — the 13px
+# breathing room ABOVE is untouched), the top margin (6 → 4), the grid row
+# gap (8 → 6), the map/ALSO zone (220 → 219; last ALSO item ends y+218),
+# the region bar (18 → 16; text ends ~y+14), and the footer gap is an
+# explicit y += 5 (5px below the DATE CHECK red border, John 22:12).
+# Recount: 4 + 155+1 + 34+1 + 26+1 + 235+1 + 238+1 + 219+1 + 16+1 + 50+5
+# + 25 = bottom 1014. If the budget ever overflows, main() raises instead
+# of clipping.
 def build_layout():
-    y = 6
+    y = 4
     gap = 1
-    masthead = (MARGIN, y, CW, 169); y += 169 + gap
+    masthead = (MARGIN, y, CW, 155); y += 155 + gap
     kpi = (MARGIN, y, CW, 34); y += 34 + gap
     timeline = (MARGIN, y, CW, 26); y += 26 + gap
     lead_w = (CW - 2 * 10) // 3
@@ -688,15 +768,15 @@ def build_layout():
     grid = []
     for r in range(2):
         for c in range(5):
-            grid.append((MARGIN + c * (grid_w + 8), y + r * (116 + 8), grid_w, 116))
-    y += 116 * 2 + 8 + gap
-    map_zone = (MARGIN, y, 560, 220)
-    also_zone = (MARGIN + 560 + 12, y, CW - 560 - 12, 220)
-    y += 220 + gap
-    region = (MARGIN, y, CW, 18); y += 18 + gap
-    datecheck = (MARGIN, y, CW, 46); y += 46 + gap
-    footer = (MARGIN, y, CW, 12)
-    bottom = y + 12
+            grid.append((MARGIN + c * (grid_w + 8), y + r * (116 + 6), grid_w, 116))
+    y += 116 * 2 + 6 + gap
+    map_zone = (MARGIN, y, 560, 219)
+    also_zone = (MARGIN + 560 + 12, y, CW - 560 - 12, 219)
+    y += 219 + gap
+    region = (MARGIN, y, CW, 16); y += 16 + gap
+    datecheck = (MARGIN, y, CW, 50); y += 50 + 5
+    footer = (MARGIN, y, CW, 25)
+    bottom = y + 25
     return {"masthead": masthead, "kpi": kpi, "timeline": timeline, "leads": leads,
             "grid": grid, "map_zone": map_zone, "also_zone": also_zone,
             "region": region, "datecheck": datecheck, "footer": footer, "bottom": bottom}
@@ -704,7 +784,8 @@ def build_layout():
 # ---------------------------------------------------------------- render
 def render_masthead(d, z):
     x, y, w, h = z
-    text(d, x, y + 2, "ONE DAY OF WORLD NEWS, ONE PICTURE", fb(16), INK)
+    # v11: kicker RED (John 22:14 WIB, matching the reference's red kicker).
+    text(d, x, y + 2, "ONE DAY OF WORLD NEWS, ONE PICTURE", fb(16), RED)
     text_r(d, x + w, y + 2, "33 STORIES \u00b7 7 REGIONS \u00b7 ALL FROM THIS MONDAY", fb(16), INK)
     msize = fit("MONDAY", SERIF_BOLD, 128, 660)
     # v8: MONDAY sits ~13px below the kicker line (was y+14, crowded).
@@ -894,17 +975,37 @@ def render_datecheck(d, z):
     # The 6 short past-date items stay; no explanatory paragraph in the
     # reference's long style (explicitly NOT wanted).
     text(d, x + 6, y + 1, "DATE CHECK", fb(16), RED)
-    pairs = [[LEFT_OUT[0], LEFT_OUT[1]], [LEFT_OUT[2], LEFT_OUT[3]], [LEFT_OUT[4], LEFT_OUT[5]]]
-    ty = y + 13
-    for pair in pairs:
-        # v8: DATE CHECK items are news items — sentence case, not all-caps.
-        text(d, x + 6, ty, "  \u00b7  ".join(sentence_case(p) for p in pair), fr(15), INK2)
-        ty += 11
+    # v11: tidy 2-column x 3-row grid (John 22:10 WIB). v10's 3 run-on rows
+    # joined by "·" were messy and row 3 overflowed ~3px past the box.
+    # Column 1 = items 1-3, column 2 = items 4-6; last row ends ~y+48, box
+    # ends y+50 (2px margin — must not overflow).
+    col2_x = x + w // 2
+    for r in range(3):
+        ty = y + 14 + r * 11
+        text(d, x + 6, ty, sentence_case(LEFT_OUT[r]), fr(13), INK2)
+        text(d, col2_x, ty, sentence_case(LEFT_OUT[r + 3]), fr(13), INK2)
 
 def render_footer(d, z):
     x, y, w, h = z
-    hline(d, x, y, w, RULE, 1)
-    text_c(d, MARGIN + CW / 2, y + 2, LEGEND, fr(15), MUTED)
+    # v11: three segments, two lines, no rule (the DATE CHECK red border is
+    # already the separator; a 1px rule below it would look like a double
+    # line). Line 1: left sentence + legend centred in the space that
+    # remains; line 2: sources centred. Footer cap-top sits 5px below the
+    # DATE CHECK red border (John 22:12).
+    f = fr(11)
+    left_w = text(d, x, y, FOOTER_LEFT, f, MUTED)
+    rem_x0 = x + left_w + 12
+    rem_x1 = x + w
+    leg_w = sum(tw(t, fb(11) if b else fr(11)) for t, b, _ in LEGEND_PARTS)
+    if rem_x0 + leg_w > rem_x1:
+        raise RuntimeError("footer legend does not fit the remaining space")
+    leg_x = rem_x0 + (rem_x1 - rem_x0 - leg_w) / 2
+    cx = leg_x
+    for t, b, key in LEGEND_PARTS:
+        ff = fb(11) if b else fr(11)
+        col = BADGE_COLORS[key] if key else MUTED
+        cx += text(d, cx, y, t, ff, col)
+    text_c(d, x + w / 2, y + 13, FOOTER_SOURCES, f, MUTED)
 
 # ---------------------------------------------------------------- main
 def main():
