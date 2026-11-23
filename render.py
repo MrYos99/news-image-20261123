@@ -1,27 +1,37 @@
-# news-image-20261123 v11 — "The World in One Day", footer + DATE CHECK +
-# colour (John's orders 22:09–22:16 WIB, approved to build 22:23 WIB).
+# news-image-20261123 v12 — "The World in One Day", DATE CHECK one column +
+# KPI strip removed + black Seoul/PMI scenes (John's orders 22:33–22:34 WIB).
 #
-# v11 keeps the v7 top-1 pattern (render outside the harness with PIL and a
+# v12 keeps the v7 top-1 pattern (render outside the harness with PIL and a
 # REAL serif font; main.ts only copies entry.png) and the v7 big art (lead
 # art 120px / card 235px, grid art 55px / card 116px, banner + place labels
 # inside the art), plus the v8 typography (headlines Title Case, sublines ALL
-# CAPS, badges coloured per type, sources Title Case) and the v9/v10 DATE
-# CHECK (title just "DATE CHECK", 6 short items). What changes in v11:
-# (1) footer becomes 3 segments on 2 lines — left "Every story happened...",
-# centre legend, right "Sources: ..." (one line is impossible at readable
-# size: the three segments measure 1,675px at 15px vs 948px width);
-# (2) DATE CHECK items become a tidy 2-column x 3-row grid (v10's 3 run-on
-# rows overflowed ~3px past the box); (3) legend descriptors lowercase
-# ("CONFIRMED 2+ outlets ..."), only badge words caps; (4) footer sits 5px
-# below the DATE CHECK red border (v10's legend was ~3px below it);
-# (5) legend badge words coloured (CONFIRMED green, OFFICIAL blue, REPORTED
-# amber, same as the card badges); (6) top kicker RED; (7) scenes get
-# colourful backgrounds (Seoul chart proper, kangaroo in Australia, green
-# pitch + goal + ball for the football draw). The stored story data is NOT
-# changed — casing/colour is applied at render time only. Content is the
-# v4/v5/v6/v7 23 Nov set, unchanged: 13 illustrated cards, 20 ALSO, 6 KPIs,
-# UTC timeline, 7-region bar, world map with 13 numbered pins, DATE CHECK.
-# No new research, no changed numbers.
+# CAPS, badges coloured per type, sources Title Case) and the v11 footer
+# (3 segments on 2 lines, legend lowercase + colours, 5px gap below the
+# DATE CHECK red border, red kicker) and v11 scene colours (kangaroo in
+# Australia, green pitch + goal + ball). What changes in v12:
+# (1) DATE CHECK is ONE column of 6 rows (John 22:34 WIB — "Satu kolom,
+# 6 baris"). The 2-column split was my reading of his 22:10 "rapikan"
+# order; he asked why it was split, so it goes back to a single list.
+# The box grows 50 → 84 (6 rows at 13px/11px spacing, last row ends ~y+81,
+# 3px margin — must not overflow, unlike v10's ~3px overflow).
+# (2) The KPI strip is GONE (John 22:34 WIB — "Kita cukup pakai the day
+# aja, hapus yang dibawah 23 november 2026"): the 6 big numbers + labels
+# below "23 NOVEMBER 2026" are deleted; the masthead (MONDAY + date) stays,
+# the timeline moves up to sit directly below the masthead rule. The 6
+# numbers still appear on the page as art value chips + in headlines.
+# Removing the KPI zone frees 34px + its 1px gap = 35px, which exactly
+# funds the DATE CHECK growth (+34px); the map/ALSO zone stays 219 and
+# the bottom moves 1014 → 1013.
+# (3) Seoul (card 5, kospi) and France PMI (card 10, pmi) scene
+# backgrounds are BLACK (John 22:33 WIB — "kasih hitam aja backgroundnya").
+# Dark elements flip to white so they stay readable on black (axis, gauge
+# arc, ticks, centre disc); the red bars / downtrend line / needle stay
+# red; the value chips invert to white chips with dark text (a black chip
+# would vanish on black). The stored story data is NOT changed — casing/
+# colour is applied at render time only. Content is the v4/v5/v6/v7 23 Nov
+# set, unchanged: 13 illustrated cards, 20 ALSO, UTC timeline, 7-region
+# bar, world map with 13 numbered pins, DATE CHECK. No new research, no
+# changed numbers.
 #
 # Deterministic: fixed LCG seed 1337 for the map grain, no randomness, no
 # network, no time dependence. Run: python3 render.py [outdir]
@@ -426,11 +436,13 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
         # A market in free fall: descending bars, a steep red line, arrow.
         # v11: proper chart — blue-steel panel, gridlines, 6 descending
         # bars, downtrend line with arrowhead (was 4 plain bars on PAPER2).
-        rect(d, bx, by, bw, bh, fill=hx("#DCE6EC"))
+        # v12: BLACK background (John 22:33 WIB); the INK axis becomes
+        # WHITE so it reads on black (bars stay red, gridlines light grey).
+        rect(d, bx, by, bw, bh, fill=hx("#000000"))
         for gy in [0.3, 0.5, 0.7]:
             hline(d, round(X(0.08)), round(Y(gy)), round(bw * 0.88), hx("#B9C4CC"), 1)
-        vline(d, round(X(0.08)), round(Y(0.1)), round(bh * 0.8), INK, 2)
-        hline(d, round(X(0.08)), round(Y(0.9)), round(bw * 0.88), INK, 2)
+        vline(d, round(X(0.08)), round(Y(0.1)), round(bh * 0.8), WHITE, 2)
+        hline(d, round(X(0.08)), round(Y(0.9)), round(bw * 0.88), WHITE, 2)
         tops = []
         for i, bhf in enumerate([0.68, 0.58, 0.48, 0.38, 0.26, 0.14]):
             bx0 = X(0.14 + i * 0.13)
@@ -527,21 +539,24 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
     elif scene == "pmi":
         # A gauge dial: red low zone left, green high zone right, needle low.
         # v11: blue-steel panel background (was PAPER2).
-        rect(d, bx, by, bw, bh, fill=hx("#DCE6EC"))
+        # v12: BLACK background (John 22:33 WIB); the arc, the neutral
+        # ticks and the centre disc flip from dark to WHITE so they read on
+        # black (red/green ticks and the red needle stay as they are).
+        rect(d, bx, by, bw, bh, fill=hx("#000000"))
         gcx, gcy = X(0.42), Y(0.86)
         gr = bh * 0.62
-        d.arc([gcx - gr, gcy - gr, gcx + gr, gcy + gr], 180, 360, fill=INK2, width=max(2, round(bh * 0.05)))
+        d.arc([gcx - gr, gcy - gr, gcx + gr, gcy + gr], 180, 360, fill=WHITE, width=max(2, round(bh * 0.05)))
         for k in range(7):
             ang = math.pi - (k * math.pi) / 6
             x1 = gcx + math.cos(ang) * (gr - bh * 0.06)
             y1 = gcy - math.sin(ang) * (gr - bh * 0.06)
             x2 = gcx + math.cos(ang) * (gr + bh * 0.06)
             y2 = gcy - math.sin(ang) * (gr + bh * 0.06)
-            col = RED if k <= 2 else (hx("#2E7D32") if k >= 4 else INK2)
+            col = RED if k <= 2 else (hx("#2E7D32") if k >= 4 else WHITE)
             d.line([(x1, y1), (x2, y2)], fill=col, width=2)
         nang = math.pi - (math.pi * 0.28)
         d.line([(gcx, gcy), (gcx + math.cos(nang) * gr * 0.85, gcy - math.sin(nang) * gr * 0.85)], fill=RED, width=max(2, round(bh * 0.05)))
-        disc(d, round(gcx), round(gcy), max(2, bh * 0.07), INK)
+        disc(d, round(gcx), round(gcy), max(2, bh * 0.07), WHITE)
         d.line([(X(0.8), Y(0.3)), (X(0.8), Y(0.66))], fill=RED, width=max(2, round(bh * 0.04)))
         tri(d, X(0.8), Y(0.72), X(0.74), Y(0.6), X(0.86), Y(0.6), RED)
     elif scene == "draw44":
@@ -636,12 +651,12 @@ CARDS = [
     {"n": 2, "headline": "KYIV: WE SANK A RUSSIAN WARSHIP OFF LIBYA", "sub": "ZELENSKYY CONFIRMS DRONE HIT OFF BENGHAZI", "badge": "OFFICIAL", "source": "AP", "scene": "sinking", "accent": hx("#1F3A5F"), "lat": 32.1, "lon": 20.1, "dx": -24, "dy": 22, "banner": "WARSHIP SUNK", "place": "BENGHAZI"},
     {"n": 3, "headline": "GAZA NOW A 'TOXIC WASTELAND', OXFAM FINDS", "sub": "OVER 99% OF THE STRIP SHOWS CONTAMINATION", "badge": "CONFIRMED", "source": "OXFAM", "scene": "gaza", "accent": hx("#8C6A1F"), "lat": 31.5, "lon": 34.5, "dx": 28, "dy": -6, "banner": "99% CONTAMINATED", "place": "GAZA STRIP"},
     {"n": 4, "headline": "DYMER STRIKE TOLL HITS 11", "sub": "RESCUERS STILL SEARCH RUBBLE IN DYMER", "badge": "CONFIRMED", "source": "AA", "scene": "dymer", "accent": hx("#3B4A5A"), "lat": 50.5, "lon": 30.5, "dx": 0, "dy": 0, "value": "TOLL 11"},
-    {"n": 5, "headline": "SEOUL STOCKS PLUNGE 3.3%", "sub": "KOSPI SLIDES AS TECH SELL-OFF SPREADS", "badge": "CONFIRMED", "source": "YONHAP", "scene": "kospi", "accent": hx("#B03A2E"), "lat": 37.5, "lon": 127, "dx": 0, "dy": 0, "value": "-3.3%"},
+    {"n": 5, "headline": "SEOUL STOCKS PLUNGE 3.3%", "sub": "KOSPI SLIDES AS TECH SELL-OFF SPREADS", "badge": "CONFIRMED", "source": "YONHAP", "scene": "kospi", "accent": hx("#B03A2E"), "lat": 37.5, "lon": 127, "dx": 0, "dy": 0, "value": "-3.3%", "dark_art": True},
     {"n": 6, "headline": "SINGAPORE, CHINA SIGN 29 DEALS", "sub": "TOP BILATERAL FORUM YIELDS 29 PACTS", "badge": "CONFIRMED", "source": "CNA", "scene": "deals", "accent": hx("#0E7C7B"), "lat": 1.3, "lon": 104, "dx": 0, "dy": 0, "value": "29 DEALS"},
     {"n": 7, "headline": "MODI HOSTS NEPAL PM, AID PACT", "sub": "RS 15,000-CRORE PACKAGE, NEW TRAIN LINK", "badge": "CONFIRMED", "source": "THE HINDU", "scene": "aid", "accent": hx("#D97B29"), "lat": 28.6, "lon": 77, "dx": -30, "dy": 30, "value": "AID PACT"},
     {"n": 8, "headline": "KENYA, DR CONGO RESTORE TIES", "sub": "RUTO, TSHISEKEDI END YEARS OF TENSION", "badge": "CONFIRMED", "source": "BBC", "scene": "ties", "accent": hx("#2E7D32"), "lat": -1.3, "lon": 36.8, "dx": 24, "dy": 14, "value": "TIES RESTORED"},
     {"n": 9, "headline": "FRANCE UNVEILS \u20ac15BN PROJECTS", "sub": "NEARLY \u20ac15BN PLEDGED AT PARIS SUMMIT", "badge": "CONFIRMED", "source": "EURONEWS", "scene": "france15", "accent": hx("#1D4ED8"), "lat": 48.85, "lon": 2.35, "dx": 0, "dy": 0, "value": "\u20ac15BN"},
-    {"n": 10, "headline": "FRANCE PMI HITS SIX-MONTH LOW", "sub": "SERVICES PMI 46.6; EUROZONE HOLDS STEADY", "badge": "CONFIRMED", "source": "REUTERS", "scene": "pmi", "accent": hx("#5B6B7C"), "lat": 48.85, "lon": 2.35, "dx": -36, "dy": -18, "value": "PMI 46.6"},
+    {"n": 10, "headline": "FRANCE PMI HITS SIX-MONTH LOW", "sub": "SERVICES PMI 46.6; EUROZONE HOLDS STEADY", "badge": "CONFIRMED", "source": "REUTERS", "scene": "pmi", "accent": hx("#5B6B7C"), "lat": 48.85, "lon": 2.35, "dx": -36, "dy": -18, "value": "PMI 46.6", "dark_art": True},
     {"n": 11, "headline": "ATALANTA 4-4 INTER EPIC DRAW", "sub": "EIGHT-GOAL THRILLER IN BERGAMO", "badge": "CONFIRMED", "source": "SERIE A", "scene": "draw44", "accent": hx("#6C3483"), "lat": 45.7, "lon": 9.7, "dx": 40, "dy": 32, "value": "4-4"},
     {"n": 12, "headline": "TRUMP BLAMES VOTERS FOR LOSS", "sub": "SAYS VOTERS IGNORED HIS IRAN WARNINGS", "badge": "REPORTED", "source": "AA", "scene": "voters", "accent": hx("#922B21"), "lat": 38.9, "lon": -77, "dx": 0, "dy": 0, "value": "BLAMES VOTERS"},
     {"n": 13, "headline": "AUSTRALIA: SLOWER GROWTH AHEAD", "sub": "CHALMERS: JOBS, PRICES UNDER PRESSURE", "badge": "REPORTED", "source": "SMH", "scene": "aus", "accent": hx("#B7950B"), "lat": -35.3, "lon": 149, "dx": 0, "dy": 0, "value": "SLOWER GROWTH"},
@@ -672,15 +687,6 @@ ALSO = [
 ]
 ALSO_SOURCES = "ALSO SOURCES: UN NEWS \u00b7 THE NATIONAL \u00b7 AA \u00b7 THE GUARDIAN \u00b7 MIT NEWS \u00b7 AFP \u00b7 SCMP \u00b7 AP \u00b7 REUTERS \u00b7 DAILY NATION \u00b7 SOVEREIGN CREDITOR REVIEW \u00b7 POLIDATO"
 
-# The day in numbers: 6 KPI cells.
-KPIS = [
-    ("11", "DYMER TOLL"),
-    ("3.3%", "KOSPI FALL"),
-    ("29", "SG-CN DEALS"),
-    ("\u20ac15BN", "FRANCE PLEDGES"),
-    ("258", "HOUSE SEATS"),
-    ("24", "FACTORY DEATHS"),
-]
 
 # The day in UTC: six timed moments from the research (UTC times as reported).
 TIMELINE = [
@@ -736,7 +742,7 @@ REGION_COLORS = [hx("#1F3A5F"), hx("#2E7D32"), hx("#1D4ED8"), hx("#D97B29"), hx(
 # ---------------------------------------------------------------- layout
 # GRID first: every zone rect is computed here, then the render pass reads
 # the layout only. v8 budget: the lead cards are 235 tall (art 120) and the
-# grid cards 116 (art 55), so the masthead/KPI/timeline are slightly
+# grid cards 116 (art 55), so the masthead/timeline are slightly
 # smaller, the map is 150 tall and the ALSO list runs at 12px. The masthead
 # zone is 157 tall so MONDAY has ~13px of breathing room below the kicker
 # line (v8 fix); the top margin is 6 and the gaps are 1 to pay for it. The
@@ -745,21 +751,21 @@ REGION_COLORS = [hx("#1F3A5F"), hx("#2E7D32"), hx("#1D4ED8"), hx("#D97B29"), hx(
 # count it stated is already in the top kicker, so the line was redundant.
 # The freed 12px move from the KPI zone (46 → 34) to the masthead zone
 # (157 → 169) for more breathing room; the page still ends at y=1014.
-# v11 budget: the footer needs 2 lines (25 tall) and the DATE CHECK grid
-# needs 50, so the page pays from the masthead (169 → 155; its content ends
-# at y+153, so the bottom rule sits 2px above the zone end — the 13px
-# breathing room ABOVE is untouched), the top margin (6 → 4), the grid row
-# gap (8 → 6), the map/ALSO zone (220 → 219; last ALSO item ends y+218),
-# the region bar (18 → 16; text ends ~y+14), and the footer gap is an
-# explicit y += 5 (5px below the DATE CHECK red border, John 22:12).
-# Recount: 4 + 155+1 + 34+1 + 26+1 + 235+1 + 238+1 + 219+1 + 16+1 + 50+5
-# + 25 = bottom 1014. If the budget ever overflows, main() raises instead
-# of clipping.
+# v12 budget: the KPI strip is GONE (John 22:34 WIB — "Kita cukup pakai
+# the day aja, hapus yang dibawah 23 november 2026"), so the timeline moves
+# up to sit directly below the masthead rule. Removing the KPI zone frees
+# 34px + its 1px gap = 35px; the DATE CHECK one-column box takes +34px
+# (50 → 84, 6 rows at 13px/11px spacing, last row ends ~y+81, 3px margin),
+# so the map/ALSO zone stays 219 and the bottom moves 1014 → 1013.
+# Recount: 4 + 155+1 + 26+1 + 235+1 + 238+1 + 219+1 + 16+1 + 84+5
+# + 25 = bottom 1013 (≤ 1016). If the budget ever overflows, main() raises
+# instead of clipping.
 def build_layout():
     y = 4
     gap = 1
     masthead = (MARGIN, y, CW, 155); y += 155 + gap
-    kpi = (MARGIN, y, CW, 34); y += 34 + gap
+    # v12: no KPI strip (John 22:34 WIB) — the timeline sits directly
+    # below the masthead rule.
     timeline = (MARGIN, y, CW, 26); y += 26 + gap
     lead_w = (CW - 2 * 10) // 3
     leads = [(MARGIN + i * (lead_w + 10), y, lead_w, 235) for i in range(3)]
@@ -774,10 +780,10 @@ def build_layout():
     also_zone = (MARGIN + 560 + 12, y, CW - 560 - 12, 219)
     y += 219 + gap
     region = (MARGIN, y, CW, 16); y += 16 + gap
-    datecheck = (MARGIN, y, CW, 50); y += 50 + 5
+    datecheck = (MARGIN, y, CW, 84); y += 84 + 5
     footer = (MARGIN, y, CW, 25)
     bottom = y + 25
-    return {"masthead": masthead, "kpi": kpi, "timeline": timeline, "leads": leads,
+    return {"masthead": masthead, "timeline": timeline, "leads": leads,
             "grid": grid, "map_zone": map_zone, "also_zone": also_zone,
             "region": region, "datecheck": datecheck, "footer": footer, "bottom": bottom}
 
@@ -796,18 +802,6 @@ def render_masthead(d, z):
     text_c(d, MARGIN + CW / 2, dy, "23 NOVEMBER 2026", fb(dsize), INK)
     dcap = dsize * 0.688
     hline(d, x, dy + dcap + 3, w, RULE, 2)
-
-def render_kpi(d, z):
-    x, y, w, h = z
-    # v9: the heading line is gone (redundant with the top kicker). Only the
-    # 6 numbers + their labels remain, shifted up into the freed space.
-    cell_w = CW / len(KPIS)
-    for i, (value, label) in enumerate(KPIS):
-        cx = MARGIN + i * cell_w + cell_w / 2
-        if i > 0:
-            vline(d, round(MARGIN + i * cell_w), y + 2, 30, CARD_LINE, 1)
-        text_c(d, cx, y + 1, value, fb(30), INK)
-        text_c(d, cx, y + 22, label, fr(15), INK2)
 
 def render_timeline(d, z):
     x, y, w, h = z
@@ -892,8 +886,14 @@ def render_grid_card(d, z, card):
     ax, ay, aw, ah = x + 1, y + 4, w - 2, 55
     draw_scene(d, card["scene"], ax, ay, aw, ah, card["accent"])
     # Value chip, bottom-right of the art (top-1's "$60,190" / "M6.7" style).
+    # v12: on a black art background (Seoul, France PMI — dark_art) the chip
+    # inverts to a white chip with dark text; a black chip would vanish on
+    # black.
     vf = fb(14)
-    chip(d, ax + aw - 4 - chip_w(card["value"], vf), ay + ah - 4 - chip_h(vf), card["value"], vf, WHITE, INK)
+    if card.get("dark_art"):
+        chip(d, ax + aw - 4 - chip_w(card["value"], vf), ay + ah - 4 - chip_h(vf), card["value"], vf, INK, WHITE)
+    else:
+        chip(d, ax + aw - 4 - chip_w(card["value"], vf), ay + ah - 4 - chip_h(vf), card["value"], vf, WHITE, INK)
     disc(d, x + 13, y + 13, 12, card["accent"])
     ring(d, x + 13, y + 13, 12, WHITE, 2)
     text_c(d, x + 13, y + 6, str(card["n"]), fb(18), WHITE)
@@ -975,15 +975,14 @@ def render_datecheck(d, z):
     # The 6 short past-date items stay; no explanatory paragraph in the
     # reference's long style (explicitly NOT wanted).
     text(d, x + 6, y + 1, "DATE CHECK", fb(16), RED)
-    # v11: tidy 2-column x 3-row grid (John 22:10 WIB). v10's 3 run-on rows
-    # joined by "·" were messy and row 3 overflowed ~3px past the box.
-    # Column 1 = items 1-3, column 2 = items 4-6; last row ends ~y+48, box
-    # ends y+50 (2px margin — must not overflow).
-    col2_x = x + w // 2
-    for r in range(3):
+    # v12: one column, 6 rows (John 22:34 WIB — "Satu kolom, 6 baris").
+    # The 2-column split was my reading of his 22:10 "rapikan" order; he
+    # asked why it was split, so it goes back to a single list. Rows at
+    # y+14 + r*11; last row ends ~y+81, box ends y+84 (3px margin — must
+    # not overflow, unlike v10's ~3px overflow).
+    for r in range(6):
         ty = y + 14 + r * 11
         text(d, x + 6, ty, sentence_case(LEFT_OUT[r]), fr(13), INK2)
-        text(d, col2_x, ty, sentence_case(LEFT_OUT[r + 3]), fr(13), INK2)
 
 def render_footer(d, z):
     x, y, w, h = z
@@ -1013,8 +1012,6 @@ def main():
         raise RuntimeError(f"expected 13 cards, got {len(CARDS)}")
     if len(ALSO) != 20:
         raise RuntimeError(f"expected 20 ALSO items, got {len(ALSO)}")
-    if len(KPIS) != 6:
-        raise RuntimeError(f"expected 6 KPIs, got {len(KPIS)}")
     if len(TIMELINE) != 6:
         raise RuntimeError(f"expected 6 timeline ticks, got {len(TIMELINE)}")
     if sum(c for _, c in REGIONS) != len(CARDS) + len(ALSO):
@@ -1026,7 +1023,6 @@ def main():
     img = Image.new("RGB", (W, H), PAPER)
     d = ImageDraw.Draw(img)
     render_masthead(d, layout["masthead"])
-    render_kpi(d, layout["kpi"])
     render_timeline(d, layout["timeline"])
     for i in range(3):
         render_lead_card(d, layout["leads"][i], CARDS[i])
