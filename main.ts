@@ -701,7 +701,7 @@ const ALSO: { n: number; title: string }[] = [
   { n: 20, title: 'DEMOCRATS WIN 258 HOUSE SEATS' },
   { n: 21, title: 'CHINA: SPY-LEAK DEATH SENTENCE' },
   { n: 22, title: '24 KILLED IN INDONESIA FIRE' },
-  { n: 23, title: 'RUSSIA NUCLEAR SATELLITE READY' },
+  { n: 23, title: 'NATO: RUSSIA SATELLITE READY' },
   { n: 24, title: 'IRAN VOWS TO FIGHT US BLOCKADE' },
   { n: 25, title: '450 GERMAN SCHOOLS THREATENED' },
   { n: 26, title: "SEOUL'S FIRST FEMALE SPY CHIEF" },
@@ -713,7 +713,7 @@ const ALSO: { n: number; title: string }[] = [
   { n: 32, title: 'HUNGARY PM TO VISIT UKRAINE' },
   { n: 33, title: 'KENYA JOINS 25-NATION PLEDGE' },
 ];
-const ALSO_SOURCES = 'ALSO SOURCES: UN NEWS · THE NATIONAL · AA · THE GUARDIAN · MIT NEWS · AFP · SCMP · AP · REUTERS · DAILY NATION';
+const ALSO_SOURCES = 'ALSO SOURCES: UN NEWS · THE NATIONAL · AA · THE GUARDIAN · MIT NEWS · AFP · SCMP · AP · REUTERS · DAILY NATION · SOVEREIGN CREDITOR REVIEW · POLIDATO';
 
 // The day in numbers: 6 KPI cells (top-10 median is 6).
 const KPIS: { value: string; label: string }[] = [
@@ -750,7 +750,7 @@ const REGIONS: { name: string; count: number }[] = [
 // were deliberately left out of the 23 Nov edition.
 const LEFT_OUT: string[] = [
   'COP31 COLLAPSE — 21-22 NOV',
-  'SPARTA II DRONE STRIKE — SAT 22 NOV',
+  'SPARTA II DRONE STRIKE — SAT 21 NOV',
   'TEXAS DEMOCRATS SWEEP — 3 NOV',
   '186-DRONE BARRAGE — 22 NOV',
   'LIVERPOOL 4-0 MAN UTD — 22 NOV',
