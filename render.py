@@ -671,12 +671,15 @@ REGION_COLORS = [hx("#1F3A5F"), hx("#2E7D32"), hx("#1D4ED8"), hx("#D97B29"), hx(
 # zone is 157 tall so MONDAY has ~13px of breathing room below the kicker
 # line (v8 fix); the top margin is 6 and the gaps are 1 to pay for it. The
 # page ends at y=1014 (10px bottom margin). If the budget ever overflows,
-# main() raises instead of clipping.
+# main() raises instead of clipping. v9: the KPI heading line is gone — the
+# count it stated is already in the top kicker, so the line was redundant.
+# The freed 12px move from the KPI zone (46 → 34) to the masthead zone
+# (157 → 169) for more breathing room; the page still ends at y=1014.
 def build_layout():
     y = 6
     gap = 1
-    masthead = (MARGIN, y, CW, 157); y += 157 + gap
-    kpi = (MARGIN, y, CW, 46); y += 46 + gap
+    masthead = (MARGIN, y, CW, 169); y += 169 + gap
+    kpi = (MARGIN, y, CW, 34); y += 34 + gap
     timeline = (MARGIN, y, CW, 26); y += 26 + gap
     lead_w = (CW - 2 * 10) // 3
     leads = [(MARGIN + i * (lead_w + 10), y, lead_w, 235) for i in range(3)]
@@ -715,15 +718,15 @@ def render_masthead(d, z):
 
 def render_kpi(d, z):
     x, y, w, h = z
-    total = len(CARDS) + len(ALSO)
-    text_c(d, MARGIN + CW / 2, y + 1, f"THE DAY IN NUMBERS \u2014 {total} STORIES, 7 REGIONS", fb(17), INK)
+    # v9: the heading line is gone (redundant with the top kicker). Only the
+    # 6 numbers + their labels remain, shifted up into the freed space.
     cell_w = CW / len(KPIS)
     for i, (value, label) in enumerate(KPIS):
         cx = MARGIN + i * cell_w + cell_w / 2
         if i > 0:
-            vline(d, round(MARGIN + i * cell_w), y + 12, 30, CARD_LINE, 1)
-        text_c(d, cx, y + 13, value, fb(30), INK)
-        text_c(d, cx, y + 35, label, fr(15), INK2)
+            vline(d, round(MARGIN + i * cell_w), y + 2, 30, CARD_LINE, 1)
+        text_c(d, cx, y + 1, value, fb(30), INK)
+        text_c(d, cx, y + 22, label, fr(15), INK2)
 
 def render_timeline(d, z):
     x, y, w, h = z
