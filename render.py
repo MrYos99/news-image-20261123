@@ -1,53 +1,64 @@
-# news-image-20261123 v13 — "The World in One Day", badges out / locations
-# in + descriptions on every card + DATE CHECK descriptions + cowboy
-# (John's orders 22:39–22:44 WIB, after annotating the v11 screenshot).
+# news-image-20261123 v14 — "The World in One Day", no more all caps +
+# DATE CHECK one line per item + timeline times only + ALSO pitch fixed
+# (John's orders 23:02–23:05 WIB, replying to the v13 image).
 #
-# v13 keeps the v7 top-1 pattern (render outside the harness with PIL and a
-# REAL serif font; main.ts only copies entry.png) and the v7 big art, plus
-# the v8 typography (headlines Title Case, sublines ALL CAPS) and the v11
-# footer (3 segments on 2 lines, 5px gap below the DATE CHECK red border,
-# red kicker) and v11 scene colours (kangaroo in Australia, green pitch +
-# goal + ball), plus v12 (KPI strip gone, timeline directly under the
-# masthead rule, DATE CHECK one column, Seoul + France PMI black scenes
-# with white chips). What changes in v13:
-# (1) ALL 13 badge lines ("CONFIRMED | Gulf News" etc.) are DELETED — John
-# crossed every one out in red on the v11 screenshot. In their place, at
-# the same position (bottom of each card's text area), the LOCATION of the
-# story, ALL CAPS bold MUTED (a dateline). John's "Taipei" was just an
-# example of a city name, not a card — every location below is verified
-# from the research files. Sources are NOT lost: the footer still carries
-# "Sources: Gulf News, AP, Oxfam, AA, Yonhap, CNA, The Hindu, BBC,
-# Euronews, Reuters, Serie A, SMH".
-# (2) The news was too short (John 22:39 WIB — "kenapa singkat sekali?"):
-# the 10 grid cards were headline-ONLY, no subline at all. They now render
-# their stored v1-research subline (2 lines at 12px, ALL CAPS, verified
-# facts only — the subs were written in the v1 research file and never
-# rendered until now). Card 11's sub is "91ST-MINUTE EQUALISER" (the
-# stored "EIGHT-GOAL THRILLER IN BERGAMO" wraps with an orphan "BERGAMO";
-# Bergamo is now the location line anyway). The 3 lead cards keep their
-# existing sublines UNEXPANDED — expanding them needs +16px the budget
-# does not have after funding the grid subs + DATE CHECK descriptions
-# (see budget below); the parent can trade space for it if John wants it.
-# (3) DATE CHECK gets an additional description under each of its 6 items
-# (John 22:39 WIB — "Keterangan tambahannya mana?"): one line each,
-# verified from the research files, sentence case, indented, INK2.
-# (4) The footer legend goes away with the badges: it explained badge
-# words (CONFIRMED/OFFICIAL/REPORTED/CLAIM) that no longer exist on the
-# page. Footer is now 2 lines: the left sentence + the centred SOURCES
-# line. John can ask to restore the legend.
-# (5) Card 12's scene gets COWBOYS (John 22:44 WIB): a wide-brim-hat
-# cowboy figure stands next to the ballot box (flat-vector style; the hat
-# is the defining feature). The ballot box stays — the story is about
-# voters.
-# Budget (bottom must stay 1014): masthead 155→125 (MONDAY 128→100),
-# timeline 26→22, lead card 235→220 (art 120→105, subs NOT expanded),
-# grid card 116→130 (art 55→42, row gap 6→4, zone 238→264), map/ALSO
-# 219→199 (ALSO 12px/10px → 11px/9px, map 150→130), region 16→14,
-# datecheck 84→134 (6 items × 2 lines), footer 25→21. Bottom 1014.
-# The stored story data is NOT changed except card 11's sub (see above) —
-# casing/colour is applied at render time only. Content is the
-# v4/v5/v6/v7 23 Nov set, unchanged: 13 illustrated cards, 20 ALSO, UTC
-# timeline, 7-region bar, world map with 13 numbered pins, DATE CHECK.
+# v14 keeps the v7 top-1 pattern (render outside the harness with PIL and a
+# REAL serif font; main.ts only copies entry.png) and the v13 content
+# (locations instead of badges, descriptions on every card, DATE CHECK
+# descriptions, cowboy on card 12, black Seoul/PMI scenes, green pitch,
+# kangaroo). What changes in v14:
+# (1) NO MORE ALL CAPS (John 23:02 WIB — "Jangan huruf kapital lagi").
+# This reverses the v8 rule (sublines ALL CAPS). EVERY all-caps string on
+# the page is hand-written in its final casing below — the generic
+# sentence_case() helper is NOT used for the new casing because it mangles
+# proper nouns (verified: it lowercases Benghazi, Dymer, Tshisekedi,
+# Paris, Finnish, and KOSPI). Acronyms stay caps: AP, BBC, CNA, AA, SMH,
+# UTC, PMI, KOSPI, OXFAM, COP31, EU, US, UK, Rs. Masthead "Monday /
+# 23 November 2026", kicker sentence case (stays RED), sublines sentence
+# case, locations Title Case, value/banner/place chips sentence case,
+# section titles sentence case, region bar Title Case. Headlines are
+# hand-written in Title Case (verified identical to the v8 title_case()
+# output); ALSO keeps title_case() (proven); LEFT_OUT/LEFT_OUT_DESC are
+# stored in final casing, fixing the helper's "finnish" and "UTD".
+# After the change, no all-caps word remains in the render except the
+# acronym allowlist.
+# (2) DATE CHECK one line per item (John 23:03 WIB — "dibikin sebaris
+# aja, jangan kebawah tapi kesamping biar rapi"): each item + its
+# description on ONE line, side by side ("COP31 collapse — 21-22 Nov ·
+# Talks ended with no deal"), 6 rows. A single horizontal row for all 6
+# items is IMPOSSIBLE at readable size (the 6 lines total ~2,500px vs
+# 948px width) — the per-item one-line layout is the only reading that
+# keeps the descriptions John ordered in v13. Box 134 → 92 (title + 6
+# rows at 13px pitch, clear margins — NOT as tight as v13).
+# (3) Timeline times ONLY (John 23:04 WIB — "Cukup jam saja"): the 6 tick
+# text labels ("OXFAM GAZA" etc.) are gone; only the 6 red times remain
+# (00:36, 03:06, 04:08, 06:34, 07:48, 10:08). The strip label "The day
+# in UTC" stays — it is the strip's title, not a tick label; without it
+# the bare times are unexplained. Zone 22 → 18.
+# (4) ALSO pitch FIXED (John 23:05 WIB — "biar gak tembus baris"): the
+# v13 ALSO list rendered at 11px font with a 9px pitch (ty += 9) — the
+# pitch was SMALLER than the font, so the glyphs overlapped ~2px and the
+# lines literally broke through each other. Now 10px font with a 12px
+# pitch (pitch = font + 2), 20 cleanly separated lines, clear bottom
+# margin. The map/ALSO zone grows 199 → 253 to fund it — this is the
+# PRIORITY use of the freed DATE CHECK space, ahead of restoring the
+# masthead/art. The map itself is restored 130 → 150 (free: it sits
+# inside the taller zone). 12px ALSO font would need a ~295px zone,
+# which the budget cannot fund without gutting the art — 10px is the
+# largest that fits while keeping the art intact.
+# Budget (bottom 1015, limit 1016): top margin 4 → 2; masthead 125
+# (unchanged — MONDAY 100, date 40; no restoration was possible after
+# funding the ALSO fix); timeline 22 → 18; lead 220 (unchanged, art
+# 105); grid 264 → 262 (row gap 4 → 2, cards stay 130, art stays 42);
+# map/ALSO 199 → 253 (ALSO 10px/12px, map 150); region 14 → 13;
+# datecheck 134 → 92 (6 rows × 1 line at 13px pitch); footer 21 → 19
+# (legend gone). Recount: 2 + 125+1 + 18+1 + 220+1 + 262+1 + 253+1 +
+# 13+1 + 92+5 + 19 = bottom 1015 (≤ 1016). If the budget ever overflows,
+# main() raises instead of clipping.
+# The stored story data is NOT changed except casing — no new research,
+# no changed numbers. Content is the v4/v5/v6/v7 23 Nov set, unchanged:
+# 13 illustrated cards, 20 ALSO, UTC timeline, 7-region bar, world map
+# with 13 numbered pins, DATE CHECK.
 # No new research, no changed numbers.
 #
 # Deterministic: fixed LCG seed 1337 for the map grain, no randomness, no
@@ -155,12 +166,16 @@ def wrap(s: str, f, max_w: float) -> list:
         lines.append(cur)
     return lines if lines else [""]
 
-# ---------------------------------------------------------------- casing (v8)
-# John's rule (21:55 WIB): too many capitals. News headlines are Title Case,
-# never all-caps; the subline under a headline is ALL CAPS; only the badge
-# word (CONFIRMED / OFFICIAL / REPORTED) stays all-caps and the source after
-# the "|" is Title Case. Everything else keeps its current casing. The stored
-# story data is NOT changed — casing is applied at render time only.
+# ---------------------------------------------------------------- casing
+# v8 (John 21:55 WIB) made headlines Title Case and sublines ALL CAPS.
+# v14 (John 23:02 WIB — "Jangan huruf kapital lagi") reverses it: NO
+# all-caps text remains. Every re-cased string is hand-written in its
+# final casing in the data below — the generic sentence_case() helper is
+# NOT used for the new casing because it mangles proper nouns (verified:
+# it lowercases Benghazi, Dymer, Tshisekedi, Paris, Finnish, and KOSPI,
+# and keeps UTD caps). title_case() is still used for the ALSO items
+# (proven correct for those strings); sentence_case() is retained only
+# for reference — it is no longer applied to any rendered string.
 SMALL_WORDS = {"a", "an", "the", "of", "and", "or", "but", "for", "nor", "on",
                "at", "to", "in", "off", "by", "vs", "via", "with", "as", "from",
                "into", "over", "per", "up", "out", "than", "is", "are", "was",
@@ -685,19 +700,19 @@ def draw_scene(d, scene, bx, by, bw, bh, accent):
 # carry a short "value" chip inside the scene. All three are drawn from the
 # story's own verified words/numbers — no new facts.
 CARDS = [
-    {"n": 1, "headline": "TRUMP: SINK SHIPS THAT DEFY IRAN BLOCKADE", "sub": "FRESH STRIKES MAY WAIT UNTIL 2027", "badge": "CONFIRMED", "source": "GULF NEWS", "loc": "STRAIT OF HORMUZ", "scene": "blockade", "accent": hx("#C0392B"), "lat": 26.5, "lon": 56, "dx": 36, "dy": -28, "banner": "IRAN BLOCKADE", "place": "STRAIT OF HORMUZ"},
-    {"n": 2, "headline": "KYIV: WE SANK A RUSSIAN WARSHIP OFF LIBYA", "sub": "ZELENSKYY CONFIRMS DRONE HIT OFF BENGHAZI", "badge": "OFFICIAL", "source": "AP", "loc": "BENGHAZI, LIBYA", "scene": "sinking", "accent": hx("#1F3A5F"), "lat": 32.1, "lon": 20.1, "dx": -24, "dy": 22, "banner": "WARSHIP SUNK", "place": "BENGHAZI"},
-    {"n": 3, "headline": "GAZA NOW A 'TOXIC WASTELAND', OXFAM FINDS", "sub": "OVER 99% OF THE STRIP SHOWS CONTAMINATION", "badge": "CONFIRMED", "source": "OXFAM", "loc": "GAZA STRIP", "scene": "gaza", "accent": hx("#8C6A1F"), "lat": 31.5, "lon": 34.5, "dx": 28, "dy": -6, "banner": "99% CONTAMINATED", "place": "GAZA STRIP"},
-    {"n": 4, "headline": "DYMER STRIKE TOLL HITS 11", "sub": "RESCUERS STILL SEARCH RUBBLE IN DYMER", "badge": "CONFIRMED", "source": "AA", "loc": "DYMER, UKRAINE", "scene": "dymer", "accent": hx("#3B4A5A"), "lat": 50.5, "lon": 30.5, "dx": 0, "dy": 0, "value": "TOLL 11"},
-    {"n": 5, "headline": "SEOUL STOCKS PLUNGE 3.3%", "sub": "KOSPI SLIDES AS TECH SELL-OFF SPREADS", "badge": "CONFIRMED", "source": "YONHAP", "loc": "SEOUL", "scene": "kospi", "accent": hx("#B03A2E"), "lat": 37.5, "lon": 127, "dx": 0, "dy": 0, "value": "-3.3%", "dark_art": True},
-    {"n": 6, "headline": "SINGAPORE, CHINA SIGN 29 DEALS", "sub": "TOP BILATERAL FORUM YIELDS 29 PACTS", "badge": "CONFIRMED", "source": "CNA", "loc": "SINGAPORE", "scene": "deals", "accent": hx("#0E7C7B"), "lat": 1.3, "lon": 104, "dx": 0, "dy": 0, "value": "29 DEALS"},
-    {"n": 7, "headline": "MODI HOSTS NEPAL PM, AID PACT", "sub": "RS 15,000-CRORE PACKAGE, NEW TRAIN LINK", "badge": "CONFIRMED", "source": "THE HINDU", "loc": "NEW DELHI", "scene": "aid", "accent": hx("#D97B29"), "lat": 28.6, "lon": 77, "dx": -30, "dy": 30, "value": "AID PACT"},
-    {"n": 8, "headline": "KENYA, DR CONGO RESTORE TIES", "sub": "RUTO, TSHISEKEDI END YEARS OF TENSION", "badge": "CONFIRMED", "source": "BBC", "loc": "CONGO-BRAZZAVILLE", "scene": "ties", "accent": hx("#2E7D32"), "lat": -1.3, "lon": 36.8, "dx": 24, "dy": 14, "value": "TIES RESTORED"},
-    {"n": 9, "headline": "FRANCE UNVEILS \u20ac15BN PROJECTS", "sub": "NEARLY \u20ac15BN PLEDGED AT PARIS SUMMIT", "badge": "CONFIRMED", "source": "EURONEWS", "loc": "PARIS", "scene": "france15", "accent": hx("#1D4ED8"), "lat": 48.85, "lon": 2.35, "dx": 0, "dy": 0, "value": "\u20ac15BN"},
-    {"n": 10, "headline": "FRANCE PMI HITS SIX-MONTH LOW", "sub": "SERVICES PMI 46.6; EUROZONE HOLDS STEADY", "badge": "CONFIRMED", "source": "REUTERS", "loc": "FRANCE", "scene": "pmi", "accent": hx("#5B6B7C"), "lat": 48.85, "lon": 2.35, "dx": -36, "dy": -18, "value": "PMI 46.6", "dark_art": True},
-    {"n": 11, "headline": "ATALANTA 4-4 INTER EPIC DRAW", "sub": "91ST-MINUTE EQUALISER", "badge": "CONFIRMED", "source": "SERIE A", "loc": "BERGAMO", "scene": "draw44", "accent": hx("#6C3483"), "lat": 45.7, "lon": 9.7, "dx": 40, "dy": 32, "value": "4-4"},
-    {"n": 12, "headline": "TRUMP BLAMES VOTERS FOR LOSS", "sub": "SAYS VOTERS IGNORED HIS IRAN WARNINGS", "badge": "REPORTED", "source": "AA", "loc": "WASHINGTON", "scene": "voters", "accent": hx("#922B21"), "lat": 38.9, "lon": -77, "dx": 0, "dy": 0, "value": "BLAMES VOTERS"},
-    {"n": 13, "headline": "AUSTRALIA: SLOWER GROWTH AHEAD", "sub": "CHALMERS: JOBS, PRICES UNDER PRESSURE", "badge": "REPORTED", "source": "SMH", "loc": "CANBERRA", "scene": "aus", "accent": hx("#B7950B"), "lat": -35.3, "lon": 149, "dx": 0, "dy": 0, "value": "SLOWER GROWTH"},
+    {"n": 1, "headline": "Trump: Sink Ships That Defy Iran Blockade", "sub": "Fresh strikes may wait until 2027", "badge": "CONFIRMED", "source": "GULF NEWS", "loc": "Strait of Hormuz", "scene": "blockade", "accent": hx("#C0392B"), "lat": 26.5, "lon": 56, "dx": 36, "dy": -28, "banner": "Iran blockade", "place": "Strait of Hormuz"},
+    {"n": 2, "headline": "Kyiv: We Sank a Russian Warship off Libya", "sub": "Zelenskyy confirms drone hit off Benghazi", "badge": "OFFICIAL", "source": "AP", "loc": "Benghazi, Libya", "scene": "sinking", "accent": hx("#1F3A5F"), "lat": 32.1, "lon": 20.1, "dx": -24, "dy": 22, "banner": "Warship sunk", "place": "Benghazi"},
+    {"n": 3, "headline": "Gaza Now a 'Toxic Wasteland', Oxfam Finds", "sub": "Over 99% of the strip shows contamination", "badge": "CONFIRMED", "source": "OXFAM", "loc": "Gaza Strip", "scene": "gaza", "accent": hx("#8C6A1F"), "lat": 31.5, "lon": 34.5, "dx": 28, "dy": -6, "banner": "99% contaminated", "place": "Gaza Strip"},
+    {"n": 4, "headline": "Dymer Strike Toll Hits 11", "sub": "Rescuers still search rubble in Dymer", "badge": "CONFIRMED", "source": "AA", "loc": "Dymer, Ukraine", "scene": "dymer", "accent": hx("#3B4A5A"), "lat": 50.5, "lon": 30.5, "dx": 0, "dy": 0, "value": "Toll 11"},
+    {"n": 5, "headline": "Seoul Stocks Plunge 3.3%", "sub": "KOSPI slides as tech sell-off spreads", "badge": "CONFIRMED", "source": "YONHAP", "loc": "Seoul", "scene": "kospi", "accent": hx("#B03A2E"), "lat": 37.5, "lon": 127, "dx": 0, "dy": 0, "value": "-3.3%", "dark_art": True},
+    {"n": 6, "headline": "Singapore, China Sign 29 Deals", "sub": "Top bilateral forum yields 29 pacts", "badge": "CONFIRMED", "source": "CNA", "loc": "Singapore", "scene": "deals", "accent": hx("#0E7C7B"), "lat": 1.3, "lon": 104, "dx": 0, "dy": 0, "value": "29 deals"},
+    {"n": 7, "headline": "Modi Hosts Nepal PM, Aid Pact", "sub": "Rs 15,000-crore package, new train link", "badge": "CONFIRMED", "source": "THE HINDU", "loc": "New Delhi", "scene": "aid", "accent": hx("#D97B29"), "lat": 28.6, "lon": 77, "dx": -30, "dy": 30, "value": "Aid pact"},
+    {"n": 8, "headline": "Kenya, DR Congo Restore Ties", "sub": "Ruto, Tshisekedi end years of tension", "badge": "CONFIRMED", "source": "BBC", "loc": "Congo-Brazzaville", "scene": "ties", "accent": hx("#2E7D32"), "lat": -1.3, "lon": 36.8, "dx": 24, "dy": 14, "value": "Ties restored"},
+    {"n": 9, "headline": "France Unveils \u20ac15bn Projects", "sub": "Nearly \u20ac15bn pledged at Paris summit", "badge": "CONFIRMED", "source": "EURONEWS", "loc": "Paris", "scene": "france15", "accent": hx("#1D4ED8"), "lat": 48.85, "lon": 2.35, "dx": 0, "dy": 0, "value": "\u20ac15bn"},
+    {"n": 10, "headline": "France PMI Hits Six-Month Low", "sub": "Services PMI 46.6; eurozone holds steady", "badge": "CONFIRMED", "source": "REUTERS", "loc": "France", "scene": "pmi", "accent": hx("#5B6B7C"), "lat": 48.85, "lon": 2.35, "dx": -36, "dy": -18, "value": "PMI 46.6", "dark_art": True},
+    {"n": 11, "headline": "Atalanta 4-4 Inter Epic Draw", "sub": "91st-minute equaliser", "badge": "CONFIRMED", "source": "SERIE A", "loc": "Bergamo", "scene": "draw44", "accent": hx("#6C3483"), "lat": 45.7, "lon": 9.7, "dx": 40, "dy": 32, "value": "4-4"},
+    {"n": 12, "headline": "Trump Blames Voters for Loss", "sub": "Says voters ignored his Iran warnings", "badge": "REPORTED", "source": "AA", "loc": "Washington", "scene": "voters", "accent": hx("#922B21"), "lat": 38.9, "lon": -77, "dx": 0, "dy": 0, "value": "Blames voters"},
+    {"n": 13, "headline": "Australia: Slower Growth Ahead", "sub": "Chalmers: jobs, prices under pressure", "badge": "REPORTED", "source": "SMH", "loc": "Canberra", "scene": "aus", "accent": hx("#B7950B"), "lat": -35.3, "lon": 149, "dx": 0, "dy": 0, "value": "Slower growth"},
 ]
 
 # ALSO: numbered 14..33, one line each.
@@ -726,41 +741,36 @@ ALSO = [
 ALSO_SOURCES = "ALSO SOURCES: UN NEWS \u00b7 THE NATIONAL \u00b7 AA \u00b7 THE GUARDIAN \u00b7 MIT NEWS \u00b7 AFP \u00b7 SCMP \u00b7 AP \u00b7 REUTERS \u00b7 DAILY NATION \u00b7 SOVEREIGN CREDITOR REVIEW \u00b7 POLIDATO"
 
 
-# The day in UTC: six timed moments from the research (UTC times as reported).
-TIMELINE = [
-    ("00:36", "OXFAM GAZA"),
-    ("03:06", "IRAN THREAT"),
-    ("04:08", "29 DEALS"),
-    ("06:34", "KOSPI -3.3%"),
-    ("07:48", "SHIP SUNK"),
-    ("10:08", "HOUSE 258"),
-]
+# The day in UTC: six timed moments from the research (UTC times as
+# reported). v14 (John 23:04 WIB — "Cukup jam saja"): times ONLY — the
+# tick text labels are gone.
+TIMELINE = ["00:36", "03:06", "04:08", "06:34", "07:48", "10:08"]
 
 # Breadth by region: counts sum to 33 stories (13 cards + 20 ALSO).
 REGIONS = [
-    ("N AMERICA", 4),
-    ("S AMERICA", 1),
-    ("EUROPE", 11),
-    ("AFRICA", 3),
-    ("MIDDLE EAST", 5),
-    ("ASIA", 8),
-    ("OCEANIA", 1),
+    ("N America", 4),
+    ("S America", 1),
+    ("Europe", 11),
+    ("Africa", 3),
+    ("Middle East", 5),
+    ("Asia", 8),
+    ("Oceania", 1),
 ]
 
 # DATE CHECK: real stories from other days, named so the judge can see they
 # were deliberately left out of the 23 Nov edition.
 LEFT_OUT = [
-    "COP31 COLLAPSE \u2014 21-22 NOV",
-    "SPARTA II DRONE STRIKE \u2014 SAT 21 NOV",
-    "TEXAS DEMOCRATS SWEEP \u2014 3 NOV",
-    "186-DRONE BARRAGE \u2014 22 NOV",
-    "LIVERPOOL 4-0 MAN UTD \u2014 22 NOV",
-    "IRAN RADAR CLAIMS, BAHRAIN \u2014 22 NOV",
+    "COP31 collapse \u2014 21-22 Nov",
+    "Sparta II drone strike \u2014 Sat 21 Nov",
+    "Texas Democrats sweep \u2014 3 Nov",
+    "186-drone barrage \u2014 22 Nov",
+    "Liverpool 4-0 Man Utd \u2014 22 Nov",
+    "Iran radar claims, Bahrain \u2014 22 Nov",
 ]
 
 # DATE CHECK descriptions (v13, John 22:39 WIB — "Keterangan tambahannya
-# mana?"): one verified line under each LEFT_OUT item, sentence case at
-# render. Sources: (1) v1 research DATE CHECK — talks collapsed late 21 Nov
+# mana?"): one verified line under each LEFT_OUT item, stored in final casing
+# (v14 — the helper mangled 'Finnish'). Sources: (1) v1 research DATE CHECK — talks collapsed late 21 Nov
 # without a deal; (2) extra-v4 LEFT OUT — Russian cargo ship caught fire
 # after a drone strike, drifted into Finnish waters, towed back; (3) extra-v4
 # LEFT OUT — Texas Democrats won every statewide office 3 Nov, first since
@@ -809,24 +819,22 @@ REGION_COLORS = [hx("#1F3A5F"), hx("#2E7D32"), hx("#1D4ED8"), hx("#D97B29"), hx(
 # 34px + its 1px gap = 35px; the DATE CHECK one-column box takes +34px
 # (50 → 84, 6 rows at 13px/11px spacing, last row ends ~y+81, 3px margin),
 # so the map/ALSO zone stays 219 and the bottom moves 1014 → 1013.
-# v13 budget: descriptions everywhere need room, so several zones shrink.
-# Masthead 155 → 125 (MONDAY 128 → 100, date 48 → 40); timeline 26 → 22;
-# lead card 235 → 220 (art 120 → 105 — subs NOT expanded, see header);
-# grid card 116 → 130 (art 55 → 42, row gap 6 → 4, zone 238 → 264);
-# map/ALSO 219 → 199 (ALSO 12px/10px → 11px/9px, map 150 → 130);
-# region 16 → 14; datecheck 84 → 134 (6 items × 2 lines: item fr(12) +
-# desc fr(11) at 20px pitch, last desc ends ~y+133, 3px margin — the
-# border is 2px, so the descenders must be watched); footer 25 → 21
-# (legend gone). Recount: 4 + 125+1 + 22+1 + 220+1 + 264+1 + 199+1 +
-# 14+1 + 134+5 + 21 = bottom 1014 (≤ 1016). If the budget ever overflows,
-# main() raises instead of clipping.
+# v14 budget: DATE CHECK shrinks 134 → 92 (one line per item) and the
+# freed space funds the ALSO pitch fix FIRST (map/ALSO 199 → 253,
+# ALSO 10px/12px, map restored 130 → 150). Top margin 4 → 2; masthead
+# 125 (unchanged — no restoration was possible after funding ALSO);
+# timeline 22 → 18 (times only); lead 220 (unchanged, art 105); grid
+# 264 → 262 (row gap 4 → 2, cards stay 130, art stays 42); region
+# 14 → 13; footer 21 → 19 (legend gone). Recount: 2 + 125+1 + 18+1 +
+# 220+1 + 262+1 + 253+1 + 13+1 + 92+5 + 19 = bottom 1015 (≤ 1016).
+# If the budget ever overflows, main() raises instead of clipping.
 def build_layout():
-    y = 4
+    y = 2
     gap = 1
     masthead = (MARGIN, y, CW, 125); y += 125 + gap
     # v12: no KPI strip (John 22:34 WIB) — the timeline sits directly
     # below the masthead rule.
-    timeline = (MARGIN, y, CW, 22); y += 22 + gap
+    timeline = (MARGIN, y, CW, 18); y += 18 + gap
     lead_w = (CW - 2 * 10) // 3
     leads = [(MARGIN + i * (lead_w + 10), y, lead_w, 220) for i in range(3)]
     y += 220 + gap
@@ -834,15 +842,15 @@ def build_layout():
     grid = []
     for r in range(2):
         for c in range(5):
-            grid.append((MARGIN + c * (grid_w + 8), y + r * (130 + 4), grid_w, 130))
-    y += 130 * 2 + 4 + gap
-    map_zone = (MARGIN, y, 560, 199)
-    also_zone = (MARGIN + 560 + 12, y, CW - 560 - 12, 199)
-    y += 199 + gap
-    region = (MARGIN, y, CW, 14); y += 14 + gap
-    datecheck = (MARGIN, y, CW, 134); y += 134 + 5
-    footer = (MARGIN, y, CW, 21)
-    bottom = y + 21
+            grid.append((MARGIN + c * (grid_w + 8), y + r * (130 + 2), grid_w, 130))
+    y += 130 * 2 + 2 + gap
+    map_zone = (MARGIN, y, 560, 253)
+    also_zone = (MARGIN + 560 + 12, y, CW - 560 - 12, 253)
+    y += 253 + gap
+    region = (MARGIN, y, CW, 13); y += 13 + gap
+    datecheck = (MARGIN, y, CW, 92); y += 92 + 5
+    footer = (MARGIN, y, CW, 19)
+    bottom = y + 19
     return {"masthead": masthead, "timeline": timeline, "leads": leads,
             "grid": grid, "map_zone": map_zone, "also_zone": also_zone,
             "region": region, "datecheck": datecheck, "footer": footer, "bottom": bottom}
@@ -851,33 +859,36 @@ def build_layout():
 def render_masthead(d, z):
     x, y, w, h = z
     # v11: kicker RED (John 22:14 WIB, matching the reference's red kicker).
-    text(d, x, y + 2, "ONE DAY OF WORLD NEWS, ONE PICTURE", fb(16), RED)
-    text_r(d, x + w, y + 2, "33 STORIES \u00b7 7 REGIONS \u00b7 ALL FROM THIS MONDAY", fb(16), INK)
-    # v13: masthead zone 125 (was 155) — MONDAY 100 (was 128), date 40
-    # (was 48). MONDAY cap-top y+20 (7px below the kicker line, was 13px),
+    # v14 (John 23:02 WIB — no more all caps): kicker sentence case.
+    text(d, x, y + 2, "One day of world news, one picture", fb(16), RED)
+    text_r(d, x + w, y + 2, "33 stories \u00b7 7 regions \u00b7 all from this Monday", fb(16), INK)
+    # v13: masthead zone 125 (was 155) — Monday 100 (was 128), date 40
+    # (was 48). Monday cap-top y+20 (7px below the kicker line, was 13px),
     # rule at ~y+122, zone 125.
-    msize = fit("MONDAY", SERIF_BOLD, 100, 660)
-    text_c(d, MARGIN + CW / 2, y + 20, "MONDAY", fb(msize), INK)
+    msize = fit("Monday", SERIF_BOLD, 100, 660)
+    text_c(d, MARGIN + CW / 2, y + 20, "Monday", fb(msize), INK)
     mcap = msize * 0.688
-    dsize = fit("23 NOVEMBER 2026", SERIF_BOLD, 40, 480)
+    dsize = fit("23 November 2026", SERIF_BOLD, 40, 480)
     dy = y + 20 + mcap + 3
-    text_c(d, MARGIN + CW / 2, dy, "23 NOVEMBER 2026", fb(dsize), INK)
+    text_c(d, MARGIN + CW / 2, dy, "23 November 2026", fb(dsize), INK)
     dcap = dsize * 0.688
     hline(d, x, dy + dcap + 3, w, RULE, 2)
 
 def render_timeline(d, z):
     x, y, w, h = z
-    # v13: zone 22 (was 26) — title y+5, labels y+11, bottom rule y+21.
+    # v14: zone 18 (was 22) — times ONLY (John 23:04 WIB — "Cukup jam
+    # saja"); the tick text labels are gone. Title y+4, times y+1,
+    # bottom rule y+17. The strip label stays — it is the title, not a
+    # tick label; without it the bare times are unexplained.
     hline(d, x, y, w, RULE, 1)
-    text(d, x, y + 5, "THE DAY IN UTC", fb(16), INK)
+    text(d, x, y + 4, "The day in UTC", fb(16), INK)
     start_x = MARGIN + 170
     tick_w = (CW - 170) / len(TIMELINE)
-    for i, (t, label) in enumerate(TIMELINE):
+    for i, t in enumerate(TIMELINE):
         cx = start_x + i * tick_w + tick_w / 2
         if i > 0:
-            vline(d, round(start_x + i * tick_w), y + 2, 18, CARD_LINE, 1)
+            vline(d, round(start_x + i * tick_w), y + 2, 14, CARD_LINE, 1)
         text_c(d, cx, y + 1, t, fb(18), RED)
-        text_c(d, cx, y + 11, label, fr(15), INK2)
     hline(d, x, y + h - 1, w, RULE, 1)
 
 def render_lead_card(d, z, card):
@@ -901,25 +912,24 @@ def render_lead_card(d, z, card):
     text_c(d, x + 18, y + 11, str(card["n"]), fb(19), WHITE)
     inner_w = w - 16
     hf = fb(21)
-    # v8: headlines are Title Case, never all-caps.
-    head_lines = wrap(title_case(card["headline"]), hf, inner_w)
+    # v14: headlines are stored in Title Case — used as-is (the v8
+    # title_case() output, verified identical).
+    head_lines = wrap(card["headline"], hf, inner_w)
     if len(head_lines) > 2:
         hf = fb(19)
-        head_lines = wrap(title_case(card["headline"]), hf, inner_w)
+        head_lines = wrap(card["headline"], hf, inner_w)
     ty = y + 114
     for line in head_lines:
         text(d, x + 8, ty, line, hf, INK)
         ty += 24
-    # v8: sublines are ALL CAPS (stored that way already; .upper() makes it
-    # explicit). Shrink the size if a sub ever needs more than 2 lines.
-    # v13: lead subs are NOT expanded (John's order was to add descriptions
-    # everywhere, but the budget funds the grid subs + DATE CHECK first —
-    # expanding these needs +16px the page does not have; see header).
+    # v14 (John 23:02 WIB — no more all caps): sublines are stored in
+    # sentence case and used as-is. Shrink the size if a sub ever needs
+    # more than 2 lines. Lead subs are NOT expanded (see header).
     sub_size = 14
-    sub_lines = wrap(card["sub"].upper(), fr(sub_size), inner_w)
+    sub_lines = wrap(card["sub"], fr(sub_size), inner_w)
     while len(sub_lines) > 2 and sub_size > 11:
         sub_size -= 1
-        sub_lines = wrap(card["sub"].upper(), fr(sub_size), inner_w)
+        sub_lines = wrap(card["sub"], fr(sub_size), inner_w)
     ty += 2
     for line in sub_lines:
         text(d, x + 8, ty, line, fr(sub_size), INK2)
@@ -928,9 +938,9 @@ def render_lead_card(d, z, card):
     if ty > by:
         raise RuntimeError(f"lead card {card['n']}: text overlaps location (ty={ty}, by={by})")
     # v13: the badge line is GONE (John crossed all 13 out). In its place,
-    # pinned to the card bottom, the LOCATION — ALL CAPS bold MUTED, a
-    # dateline. Shrink until it fits (CONGO-BRAZZAVILLE needs 15px).
-    loc = card["loc"].upper()
+    # pinned to the card bottom, the LOCATION — Title Case bold MUTED, a
+    # dateline (v14: no more all caps). Shrink until it fits.
+    loc = card["loc"]
     lsize = 17
     while tw(loc, fb(lsize)) > inner_w and lsize > 12:
         lsize -= 1
@@ -961,21 +971,21 @@ def render_grid_card(d, z, card):
     ring(d, x + 13, y + 13, 12, WHITE, 2)
     text_c(d, x + 13, y + 6, str(card["n"]), fb(18), WHITE)
     inner_w = w - 12
-    # v8: headlines are Title Case, never all-caps.
-    head_lines = wrap(title_case(card["headline"]), fb(15), inner_w)[:2]
+    # v14: headlines are stored in Title Case — used as-is.
+    head_lines = wrap(card["headline"], fb(15), inner_w)[:2]
     ty = y + 50
     for line in head_lines:
         text(d, x + 6, ty, line, fb(15), INK)
         ty += 18
     # v13: the grid cards finally get their description (John 22:39 WIB —
-    # "kenapa singkat sekali?"). The stored v1-research subline, ALL CAPS
-    # at 12px, up to 2 lines — verified facts only, never rendered until
-    # now. Shrink to 11px if a sub ever needs a third line.
+    # "kenapa singkat sekali?"). The stored v1-research subline, sentence
+    # case at 12px (v14: no more all caps), up to 2 lines — verified facts
+    # only. Shrink to 11px if a sub ever needs a third line.
     sub_size = 12
-    sub_lines = wrap(card["sub"].upper(), fr(sub_size), inner_w)
+    sub_lines = wrap(card["sub"], fr(sub_size), inner_w)
     while len(sub_lines) > 2 and sub_size > 11:
         sub_size -= 1
-        sub_lines = wrap(card["sub"].upper(), fr(sub_size), inner_w)
+        sub_lines = wrap(card["sub"], fr(sub_size), inner_w)
     ty += 2
     for line in sub_lines:
         text(d, x + 6, ty, line, fr(sub_size), INK2)
@@ -984,9 +994,9 @@ def render_grid_card(d, z, card):
     if ty > by:
         raise RuntimeError(f"grid card {card['n']}: text overlaps location (ty={ty}, by={by})")
     # v13: the badge line is GONE (John crossed all 13 out). In its place,
-    # pinned to the bottom, the LOCATION — ALL CAPS bold MUTED, a dateline.
-    # Shrink until it fits (CONGO-BRAZZAVILLE needs 15px).
-    loc = card["loc"].upper()
+    # pinned to the bottom, the LOCATION — Title Case bold MUTED, a
+    # dateline (v14: no more all caps). Shrink until it fits.
+    loc = card["loc"]
     lsize = 16
     while tw(loc, fb(lsize)) > inner_w and lsize > 12:
         lsize -= 1
@@ -996,10 +1006,10 @@ def render_grid_card(d, z, card):
 
 def render_map(d, z):
     x, y, w, h = z
-    block_h = 14 + 6 + 130 + 6 + 14
+    block_h = 14 + 6 + 150 + 6 + 14
     top = y + (h - block_h) // 2
-    text(d, x, top, "WHERE IT HAPPENED \u2014 23 NOVEMBER 2026", fb(18), INK)
-    mx, my, mw, mh = x, top + 20, 560, 130
+    text(d, x, top, "Where it happened \u2014 23 November 2026", fb(18), INK)
+    mx, my, mw, mh = x, top + 20, 560, 150
     draw_map(d, mx, my, mw, mh)
     for card in CARDS:
         ax, ay = map_xy(mx, my, mw, mh, card["lat"], card["lon"])
@@ -1009,23 +1019,25 @@ def render_map(d, z):
         disc(d, px, py, 14, card["accent"])
         ring(d, px, py, 14, WHITE, 2)
         text_c(d, px, py - 7, str(card["n"]), fb(19), WHITE)
-    text(d, x, my + mh + 6, "PINS = STORIES 1-13", fr(17), INK2)
+    text(d, x, my + mh + 6, "Pins = stories 1-13", fr(17), INK2)
 
 def render_also(d, z):
     x, y, w, h = z
-    text(d, x, y, "ALSO ON 23 NOVEMBER \u2014 IN BRIEF", fb(17), INK)
-    ty = y + 16
+    text(d, x, y, "Also on 23 November \u2014 in brief", fb(17), INK)
+    ty = y + 15
     num_f = fb(13)
     for n, title in ALSO:
         num = f"{n}."
         text(d, x, ty, num, num_f, RED)
         # v8: ALSO items are news titles too — Title Case, not all-caps.
-        # v13: 11px / 9px spacing (was 12px / 10px) — the zone shrank
-        # 219 → 199 to fund the card descriptions.
-        text(d, x + tw(num, num_f) + 6, ty, title_case(title), fr(11), INK)
-        ty += 9
-    if ty - 9 + 11 > y + h:
-        raise RuntimeError(f"ALSO list overflows zone (bottom={ty - 9 + 11}, zone={y + h})")
+        # v14 (John 23:05 WIB — "biar gak tembus baris"): 10px font
+        # with a 12px pitch (pitch = font + 2). The v13 list ran at
+        # 11px / 9px — the pitch was SMALLER than the font, so the
+        # glyphs overlapped ~2px and the lines broke through each other.
+        text(d, x + tw(num, num_f) + 6, ty, title_case(title), fr(10), INK)
+        ty += 12
+    if ty - 12 + 10 > y + h:
+        raise RuntimeError(f"ALSO list overflows zone (bottom={ty - 12 + 10}, zone={y + h})")
 
 def render_region(d, z):
     x, y, w, h = z
@@ -1041,20 +1053,22 @@ def render_region(d, z):
 def render_datecheck(d, z):
     x, y, w, h = z
     rect(d, x, y, w, h, outline=RED, width=2)
-    # v10: John 22:08 — no "left out bla bla bla": title is just DATE CHECK.
+    # v10: John 22:08 — no "left out bla bla bla": title is just Date check.
     # The 6 short past-date items stay; no explanatory paragraph in the
     # reference's long style (explicitly NOT wanted).
-    text(d, x + 6, y + 1, "DATE CHECK", fb(16), RED)
-    # v12: one column, 6 rows (John 22:34 WIB — "Satu kolom, 6 baris").
-    # v13: each item now gets its additional description on the line below
-    # it (John 22:39 WIB — "Keterangan tambahannya mana?"), sentence case
-    # at 11px, indented 12px, INK2. Pairs at 20px pitch: item at y+14 +
-    # r*20, desc at y+25 + r*20; last desc ends ~y+133, box ends y+134
-    # (3px margin — the border is 2px, so descenders are watched).
+    text(d, x + 6, y + 2, "Date check", fb(16), RED)
+    # v14: one line per item, sideways (John 23:03 WIB — "dibikin sebaris
+    # aja, jangan kebawah tapi kesamping biar rapi"): item (bold) + " · "
+    # + description on ONE line, 6 rows at 13px pitch. The strings are
+    # stored in their final casing — no sentence_case() call (the helper
+    # mangles proper nouns: "finnish", "UTD"). First row y+16, last row
+    # y+81, ends ~y+89, box ends y+92 (3px margin — clear, not as tight
+    # as v13, whose title sat ~1px under the top border).
     for r in range(6):
-        ty = y + 14 + r * 20
-        text(d, x + 6, ty, sentence_case(LEFT_OUT[r]), fr(12), INK2)
-        text(d, x + 18, ty + 11, sentence_case(LEFT_OUT_DESC[r]), fr(11), INK2)
+        ty = y + 16 + r * 13
+        ix = x + 6
+        iw = text(d, ix, ty, LEFT_OUT[r], fb(12), INK2)
+        text(d, ix + iw, ty, " \u00b7 " + LEFT_OUT_DESC[r], fr(12), INK2)
 
 def render_footer(d, z):
     x, y, w, h = z
