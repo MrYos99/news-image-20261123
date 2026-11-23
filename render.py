@@ -1,23 +1,25 @@
-# news-image-20261123 v7 — "The World in One Day", bigger art (top-1 sizes).
+# news-image-20261123 v8 — "The World in One Day", typography fix (John's rule).
 #
-# v7 keeps the v6 top-1 pattern (render outside the harness with PIL and a
-# REAL serif font; main.ts only copies entry.png) and fixes what John
-# flagged: the art was too small. Measured from superskie's top-1 image,
-# the lead art band is ~125px in a ~270px card and the grid art ~55px, with
-# banner + place labels INSIDE the art. v6 had lead art 56px / card 172px
-# and grid art 22px. v7: lead art 120px / card 235px, grid art 55px / card
-# 116px, banner + place labels inside the lead art, value labels inside the
-# grid art. Same flat-vector material as top-1 (simple shapes, flat colours)
-# — the difference was size, not material. To fit the taller cards in
-# 1024px, the masthead/KPI/timeline are slightly smaller, the map is
-# shorter (150px) and the ALSO list runs at 12px. Content is the v4/v5/v6
-# 23 Nov set, unchanged: 13 illustrated cards, 20 ALSO, 6 KPIs, UTC
-# timeline, 7-region bar, world map with 13 numbered pins, DATE CHECK.
+# v8 keeps the v7 top-1 pattern (render outside the harness with PIL and a
+# REAL serif font; main.ts only copies entry.png) and the v7 big art (lead
+# art 120px / card 235px, grid art 55px / card 116px, banner + place labels
+# inside the art). What changes is TYPOGRAPHY, per John's 21:55 WIB order:
+# too many capitals. News headlines are Title Case, never all-caps; the
+# subline under a headline is ALL CAPS; only the badge word (CONFIRMED /
+# OFFICIAL / REPORTED) stays all-caps and the source after "|" is Title Case
+# (acronyms AP/BBC/CNA/AA/SMH stay caps); each badge type gets its own
+# consistent colour (CONFIRMED green, OFFICIAL blue, REPORTED amber) instead
+# of the card's accent colour. Also (21:56 WIB) the MONDAY masthead gets
+# ~13px of breathing room below the kicker line above it. The stored story
+# data is NOT changed — casing is applied at render time only. Content is the
+# v4/v5/v6/v7 23 Nov set, unchanged: 13 illustrated cards, 20 ALSO, 6 KPIs,
+# UTC timeline, 7-region bar, world map with 13 numbered pins, DATE CHECK.
 # No new research, no changed numbers.
 #
 # Deterministic: fixed LCG seed 1337 for the map grain, no randomness, no
 # network, no time dependence. Run: python3 render.py [outdir]
 
+import re
 import sys
 from pathlib import Path
 
@@ -47,6 +49,11 @@ WHITE = (255, 255, 255)
 SKY = (214, 228, 238)
 GOLD = (232, 160, 32)
 GRAT = (203, 211, 217)
+
+# Badge colours by type (v8): one consistent colour per badge word, instead of
+# the card's accent colour. CONFIRMED green, OFFICIAL blue, REPORTED amber.
+BADGE_COLORS = {"CONFIRMED": hx("#1B7A2E"), "OFFICIAL": hx("#1565C0"),
+                "REPORTED": hx("#B45309")}
 
 # ---------------------------------------------------------------- fonts
 # Liberation Serif is metric-compatible with Times New Roman — the closest
@@ -115,6 +122,76 @@ def wrap(s: str, f, max_w: float) -> list:
     if cur:
         lines.append(cur)
     return lines if lines else [""]
+
+# ---------------------------------------------------------------- casing (v8)
+# John's rule (21:55 WIB): too many capitals. News headlines are Title Case,
+# never all-caps; the subline under a headline is ALL CAPS; only the badge
+# word (CONFIRMED / OFFICIAL / REPORTED) stays all-caps and the source after
+# the "|" is Title Case. Everything else keeps its current casing. The stored
+# story data is NOT changed — casing is applied at render time only.
+SMALL_WORDS = {"a", "an", "the", "of", "and", "or", "but", "for", "nor", "on",
+               "at", "to", "in", "off", "by", "vs", "via", "with", "as", "from",
+               "into", "over", "per", "up", "out", "than", "is", "are", "was",
+               "were", "it", "its"}
+ACRONYMS = {"AP", "BBC", "CNA", "AA", "SMH", "EU", "US", "UK", "NATO", "PMI",
+            "AI", "PM", "DR", "VP", "COP31", "UTD", "UN", "ICC", "FBI"}
+# Words that stay capitalised in sentence case: acronyms, roman numerals,
+# month/day abbreviations, and the proper nouns appearing in the DATE CHECK
+# items (places, names, parties).
+SENTENCE_KEEP = ACRONYMS | {"II", "III", "IV", "Nov", "Sat", "Sun", "Mon", "Tue",
+                            "Wed", "Thu", "Fri", "Bahrain", "Liverpool", "Texas",
+                            "Sparta", "Man", "Utd", "Democrats", "Iran", "Gaza",
+                            "Kyiv"}
+
+def _cap_core(core: str, first: bool) -> str:
+    """Capitalise one alphabetic core (letters, maybe an apostrophe-s)."""
+    if not any(c.isalpha() for c in core):
+        return core
+    up = core.upper()
+    if up in ACRONYMS:
+        return up
+    if re.fullmatch(r"[IVXLC]+", up) and len(up) <= 4:
+        return up
+    if any(c.isdigit() for c in core):
+        return core.capitalize()
+    if not first and core.lower() in SMALL_WORDS:
+        return core.lower()
+    return core.capitalize()
+
+def _title_segment(seg: str, first: bool) -> str:
+    """Title-case one hyphen-separated segment, keeping its punctuation."""
+    m = re.match(r"^([^A-Za-z0-9]*)([A-Za-z0-9][A-Za-z0-9']*)(.*)$", seg)
+    if not m:
+        return seg
+    lead, core, trail = m.groups()
+    return lead + _cap_core(core, first) + trail
+
+def title_case(s: str) -> str:
+    """Title Case: major words capitalised, small words lowercase unless
+    first/last or after a colon. Acronyms and roman numerals stay caps."""
+    tokens = s.split(" ")
+    out = []
+    for i, tok in enumerate(tokens):
+        first = (i == 0) or (i == len(tokens) - 1) or out[-1].endswith(":")
+        parts = tok.split("-")
+        out.append("-".join(_title_segment(p, first and j == 0)
+                            for j, p in enumerate(parts)))
+    return " ".join(out)
+
+def sentence_case(s: str) -> str:
+    """Sentence case: first word capitalised, the rest lowercase except
+    acronyms, roman numerals, month/day abbreviations and proper nouns."""
+    words = title_case(s).split(" ")
+    out = []
+    for i, w in enumerate(words):
+        core = w.strip(".,'\"—-")
+        first_alpha = re.search(r"[A-Za-z]", w)
+        starts_with_letter = first_alpha is not None and first_alpha.start() == 0
+        if (i == 0 and starts_with_letter) or core in SENTENCE_KEEP:
+            out.append(w)
+        else:
+            out.append(w.lower())
+    return " ".join(out)
 
 # ---------------------------------------------------------------- shapes
 def rect(d, x, y, w, h, fill=None, outline=None, width=1):
@@ -588,15 +665,17 @@ REGION_COLORS = [hx("#1F3A5F"), hx("#2E7D32"), hx("#1D4ED8"), hx("#D97B29"), hx(
 
 # ---------------------------------------------------------------- layout
 # GRID first: every zone rect is computed here, then the render pass reads
-# the layout only. v7 budget: the lead cards are 235 tall (art 120) and the
+# the layout only. v8 budget: the lead cards are 235 tall (art 120) and the
 # grid cards 116 (art 55), so the masthead/KPI/timeline are slightly
-# smaller, the map is 150 tall and the ALSO list runs at 12px. The page
-# ends at y=1014 (10px bottom margin). If the budget ever overflows,
+# smaller, the map is 150 tall and the ALSO list runs at 12px. The masthead
+# zone is 157 tall so MONDAY has ~13px of breathing room below the kicker
+# line (v8 fix); the top margin is 6 and the gaps are 1 to pay for it. The
+# page ends at y=1014 (10px bottom margin). If the budget ever overflows,
 # main() raises instead of clipping.
 def build_layout():
-    y = 10
-    gap = 2
-    masthead = (MARGIN, y, CW, 145); y += 145 + gap
+    y = 6
+    gap = 1
+    masthead = (MARGIN, y, CW, 157); y += 157 + gap
     kpi = (MARGIN, y, CW, 46); y += 46 + gap
     timeline = (MARGIN, y, CW, 26); y += 26 + gap
     lead_w = (CW - 2 * 10) // 3
@@ -625,10 +704,11 @@ def render_masthead(d, z):
     text(d, x, y + 2, "ONE DAY OF WORLD NEWS, ONE PICTURE", fb(16), INK)
     text_r(d, x + w, y + 2, "33 STORIES \u00b7 7 REGIONS \u00b7 ALL FROM THIS MONDAY", fb(16), INK)
     msize = fit("MONDAY", SERIF_BOLD, 128, 660)
-    text_c(d, MARGIN + CW / 2, y + 14, "MONDAY", fb(msize), INK)
+    # v8: MONDAY sits ~13px below the kicker line (was y+14, crowded).
+    text_c(d, MARGIN + CW / 2, y + 26, "MONDAY", fb(msize), INK)
     mcap = msize * 0.688
     dsize = fit("23 NOVEMBER 2026", SERIF_BOLD, 48, 480)
-    dy = y + 14 + mcap + 3
+    dy = y + 26 + mcap + 3
     text_c(d, MARGIN + CW / 2, dy, "23 NOVEMBER 2026", fb(dsize), INK)
     dcap = dsize * 0.688
     hline(d, x, dy + dcap + 3, w, RULE, 2)
@@ -678,36 +758,46 @@ def render_lead_card(d, z, card):
     text_c(d, x + 18, y + 11, str(card["n"]), fb(19), WHITE)
     inner_w = w - 16
     hf = fb(21)
-    head_lines = wrap(card["headline"], hf, inner_w)
+    # v8: headlines are Title Case, never all-caps.
+    head_lines = wrap(title_case(card["headline"]), hf, inner_w)
     if len(head_lines) > 2:
         hf = fb(19)
-        head_lines = wrap(card["headline"], hf, inner_w)
+        head_lines = wrap(title_case(card["headline"]), hf, inner_w)
     ty = y + 129
     for line in head_lines:
         text(d, x + 8, ty, line, hf, INK)
         ty += 24
-    sub_lines = wrap(card["sub"], fr(14), inner_w)
+    # v8: sublines are ALL CAPS (stored that way already; .upper() makes it
+    # explicit). Shrink the size if a sub ever needs more than 2 lines.
+    sub_size = 14
+    sub_lines = wrap(card["sub"].upper(), fr(sub_size), inner_w)
+    while len(sub_lines) > 2 and sub_size > 11:
+        sub_size -= 1
+        sub_lines = wrap(card["sub"].upper(), fr(sub_size), inner_w)
     ty += 2
     for line in sub_lines:
-        text(d, x + 8, ty, line, fr(14), INK2)
-        ty += 16
+        text(d, x + 8, ty, line, fr(sub_size), INK2)
+        ty += sub_size + 2
     by = y + h - 20
     if ty > by:
         raise RuntimeError(f"lead card {card['n']}: text overlaps badge (ty={ty}, by={by})")
     # Badge + source, pinned to the card bottom. Shrink until the line fits.
+    # v8: only the badge word is all-caps and it takes its own type colour;
+    # the source is Title Case (acronyms stay caps).
+    src = title_case(card["source"])
     bsize, ssize = 17, 17
-    total = tw(card["badge"], fb(bsize)) + tw(" | ", fr(ssize)) + tw(card["source"], fr(ssize))
+    total = tw(card["badge"], fb(bsize)) + tw(" | ", fr(ssize)) + tw(src, fr(ssize))
     while total > inner_w and (ssize > 11 or bsize > 13):
         if ssize > 11:
             ssize -= 1
         else:
             bsize -= 1
-        total = tw(card["badge"], fb(bsize)) + tw(" | ", fr(ssize)) + tw(card["source"], fr(ssize))
+        total = tw(card["badge"], fb(bsize)) + tw(" | ", fr(ssize)) + tw(src, fr(ssize))
     if total > inner_w:
         raise RuntimeError(f"lead card {card['n']}: badge line still too wide ({total:.0f} > {inner_w})")
-    bw = text(d, x + 8, by, card["badge"], fb(bsize), card["accent"])
+    bw = text(d, x + 8, by, card["badge"], fb(bsize), BADGE_COLORS[card["badge"]])
     text(d, x + 8 + bw, by, " | ", fr(ssize), INK2)
-    text(d, x + 8 + bw + tw(" | ", fr(ssize)), by, card["source"], fr(ssize), INK2)
+    text(d, x + 8 + bw + tw(" | ", fr(ssize)), by, src, fr(ssize), INK2)
 
 def render_grid_card(d, z, card):
     x, y, w, h = z
@@ -724,7 +814,8 @@ def render_grid_card(d, z, card):
     ring(d, x + 13, y + 13, 12, WHITE, 2)
     text_c(d, x + 13, y + 6, str(card["n"]), fb(18), WHITE)
     inner_w = w - 12
-    head_lines = wrap(card["headline"], fb(15), inner_w)[:2]
+    # v8: headlines are Title Case, never all-caps.
+    head_lines = wrap(title_case(card["headline"]), fb(15), inner_w)[:2]
     ty = y + 63
     for line in head_lines:
         text(d, x + 6, ty, line, fb(15), INK)
@@ -734,20 +825,22 @@ def render_grid_card(d, z, card):
         raise RuntimeError(f"grid card {card['n']}: text overlaps badge (ty={ty}, by={by})")
     # Badge + source, pinned to the bottom. Shrink the source (then the
     # badge) until the whole line fits the card — a clipped source is a
-    # defect, never ship it.
+    # defect, never ship it. v8: only the badge word is all-caps and it takes
+    # its own type colour; the source is Title Case (acronyms stay caps).
+    src = title_case(card["source"])
     bsize, ssize = 16, 15
-    total = tw(card["badge"], fb(bsize)) + tw(" | ", fr(ssize)) + tw(card["source"], fr(ssize))
+    total = tw(card["badge"], fb(bsize)) + tw(" | ", fr(ssize)) + tw(src, fr(ssize))
     while total > inner_w and (ssize > 11 or bsize > 13):
         if ssize > 11:
             ssize -= 1
         else:
             bsize -= 1
-        total = tw(card["badge"], fb(bsize)) + tw(" | ", fr(ssize)) + tw(card["source"], fr(ssize))
+        total = tw(card["badge"], fb(bsize)) + tw(" | ", fr(ssize)) + tw(src, fr(ssize))
     if total > inner_w:
         raise RuntimeError(f"grid card {card['n']}: badge line still too wide ({total:.0f} > {inner_w})")
-    bw = text(d, x + 6, by, card["badge"], fb(bsize), card["accent"])
+    bw = text(d, x + 6, by, card["badge"], fb(bsize), BADGE_COLORS[card["badge"]])
     text(d, x + 6 + bw, by, " | ", fr(ssize), INK2)
-    text(d, x + 6 + bw + tw(" | ", fr(ssize)), by, card["source"], fr(ssize), INK2)
+    text(d, x + 6 + bw + tw(" | ", fr(ssize)), by, src, fr(ssize), INK2)
 
 def render_map(d, z):
     x, y, w, h = z
@@ -774,7 +867,8 @@ def render_also(d, z):
     for n, title in ALSO:
         num = f"{n}."
         text(d, x, ty, num, num_f, RED)
-        text(d, x + tw(num, num_f) + 6, ty, title, fr(12), INK)
+        # v8: ALSO items are news titles too — Title Case, not all-caps.
+        text(d, x + tw(num, num_f) + 6, ty, title_case(title), fr(12), INK)
         ty += 10
     if ty - 10 + 12 > y + h:
         raise RuntimeError(f"ALSO list overflows zone (bottom={ty - 10 + 12}, zone={y + h})")
@@ -797,7 +891,8 @@ def render_datecheck(d, z):
     pairs = [[LEFT_OUT[0], LEFT_OUT[1]], [LEFT_OUT[2], LEFT_OUT[3]], [LEFT_OUT[4], LEFT_OUT[5]]]
     ty = y + 13
     for pair in pairs:
-        text(d, x + 6, ty, "  \u00b7  ".join(pair), fr(15), INK2)
+        # v8: DATE CHECK items are news items — sentence case, not all-caps.
+        text(d, x + 6, ty, "  \u00b7  ".join(sentence_case(p) for p in pair), fr(15), INK2)
         ty += 11
 
 def render_footer(d, z):
