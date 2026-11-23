@@ -890,7 +890,10 @@ def render_region(d, z):
 def render_datecheck(d, z):
     x, y, w, h = z
     rect(d, x, y, w, h, outline=RED, width=2)
-    text(d, x + 6, y + 1, "DATE CHECK \u2014 LEFT OUT: NOT 23 NOVEMBER", fb(16), RED)
+    # v10: John 22:08 — no "left out bla bla bla": title is just DATE CHECK.
+    # The 6 short past-date items stay; no explanatory paragraph in the
+    # reference's long style (explicitly NOT wanted).
+    text(d, x + 6, y + 1, "DATE CHECK", fb(16), RED)
     pairs = [[LEFT_OUT[0], LEFT_OUT[1]], [LEFT_OUT[2], LEFT_OUT[3]], [LEFT_OUT[4], LEFT_OUT[5]]]
     ty = y + 13
     for pair in pairs:
